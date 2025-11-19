@@ -91,6 +91,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
         selectedGroup: '',
         channelMembers: [] as any[],
         showGroupForm: false,
+        draggedTodo: null as TodoItem | null,
     };
 
     componentDidMount() {
@@ -251,6 +252,58 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
         }
     };
 
+    handleDragStart = (todo: TodoItem) => {
+        this.setState({ draggedTodo: todo });
+    };
+
+    handleDragEnd = () => {
+        this.setState({ draggedTodo: null });
+    };
+
+    handleDrop = async (targetGroupId: string | null) => {
+        const { draggedTodo } = this.state;
+        const channelId = this.props.channel?.id;
+
+        console.log('handleDrop called:', { draggedTodo, targetGroupId, channelId });
+
+        if (!draggedTodo || !channelId) {
+            console.log('No dragged todo or channel ID');
+            return;
+        }
+
+        // Only update if the group actually changed
+        const currentGroupId = draggedTodo.group_id || null;
+        if (currentGroupId === targetGroupId) {
+            console.log('Same group, no update needed');
+            this.setState({ draggedTodo: null });
+            return;
+        }
+
+        console.log('Updating todo group from', currentGroupId, 'to', targetGroupId);
+
+        try {
+            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...draggedTodo,
+                    group_id: targetGroupId || undefined
+                })
+            });
+
+            if (response.ok) {
+                console.log('Todo updated successfully');
+                this.setState({ draggedTodo: null });
+                this.loadTodos();
+            } else {
+                console.error('Failed to update todo:', response.status);
+            }
+        } catch (error) {
+            console.error('Error moving todo:', error);
+            this.setState({ draggedTodo: null });
+        }
+    };
+
     groupedTodos = (groupId: string | null) => {
         return this.state.todos.filter(todo => {
             if (groupId === null) {
@@ -261,7 +314,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, draggedTodo } = this.state;
         const channelName = this.props.channel?.display_name || 'Channel';
 
         return (
@@ -422,27 +475,35 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
                     </div>
 
                     {/* Todo List */}
-                    {this.groupedTodos(null).length > 0 && (
-                        <TodoGroupSection
-                            title="Ungrouped"
-                            todos={this.groupedTodos(null)}
-                            channelMembers={channelMembers}
-                            onToggle={this.toggleTodo}
-                            onDelete={this.deleteTodo}
-                            onUpdateAssignee={this.updateTodoAssignee}
-                        />
-                    )}
+                    <TodoGroupSection
+                        title="Ungrouped"
+                        groupId={null}
+                        todos={this.groupedTodos(null)}
+                        channelMembers={channelMembers}
+                        onToggle={this.toggleTodo}
+                        onDelete={this.deleteTodo}
+                        onUpdateAssignee={this.updateTodoAssignee}
+                        onDragStart={this.handleDragStart}
+                        onDragEnd={this.handleDragEnd}
+                        onDrop={this.handleDrop}
+                        isDragging={!!draggedTodo}
+                    />
 
                     {groups.map(group => (
                         <TodoGroupSection
                             key={group.id}
                             title={group.name}
+                            groupId={group.id}
                             todos={this.groupedTodos(group.id)}
                             channelMembers={channelMembers}
                             onToggle={this.toggleTodo}
                             onDelete={this.deleteTodo}
                             onUpdateAssignee={this.updateTodoAssignee}
                             onDeleteGroup={() => this.deleteGroup(group.id)}
+                            onDragStart={this.handleDragStart}
+                            onDragEnd={this.handleDragEnd}
+                            onDrop={this.handleDrop}
+                            isDragging={!!draggedTodo}
                         />
                     ))}
 
@@ -464,26 +525,80 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
 // Todo Group Section Component
 const TodoGroupSection: React.FC<{
     title: string;
+    groupId: string | null;
     todos: TodoItem[];
     channelMembers: any[];
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
     onUpdateAssignee: (todo: TodoItem, assigneeId: string) => void;
     onDeleteGroup?: () => void;
-}> = ({ title, todos, channelMembers, onToggle, onDelete, onUpdateAssignee, onDeleteGroup }) => {
-    if (todos.length === 0 && !onDeleteGroup) return null;
+    onDragStart: (todo: TodoItem) => void;
+    onDragEnd: () => void;
+    onDrop: (groupId: string | null) => void;
+    isDragging: boolean;
+}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onUpdateAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging }) => {
+    const [isDragOver, setIsDragOver] = React.useState(false);
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only trigger if we're actually leaving the drop zone
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+
+        if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+            setIsDragOver(false);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Drop triggered for group:', title, groupId);
+        setIsDragOver(false);
+        onDrop(groupId);
+    };
+
+    // Always show Ungrouped (groupId === null)
+    // Show groups if they have todos OR if we're currently dragging
+    // Show groups with delete buttons (created groups) even if empty
+    const isUngrouped = groupId === null;
+    const hasContent = todos.length > 0;
+    const isCreatedGroup = onDeleteGroup !== undefined;
+
+    const shouldShow = isUngrouped || hasContent || isDragging || isCreatedGroup;
+
+    if (!shouldShow) return null;
+
+    // Show empty state message when dragging and section is empty
+    const showDropZone = isDragging && todos.length === 0;
 
     return (
-        <div style={{
-            marginBottom: '20px',
-            paddingBottom: '16px',
-            borderBottom: '1px solid #eee'
-        }}>
+        <div
+            style={{
+                marginBottom: '20px',
+                minHeight: showDropZone ? '80px' : 'auto',
+                backgroundColor: isDragOver ? '#f0f8ff' : (showDropZone ? '#fafafa' : 'transparent'),
+                border: isDragOver ? '2px dashed #1c58d9' : (showDropZone ? '2px dashed #ddd' : 'none'),
+                borderRadius: '8px',
+                padding: '12px',
+                transition: 'all 0.2s ease',
+                position: 'relative'
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '12px'
+                marginBottom: todos.length > 0 ? '12px' : '0'
             }}>
                 <h4 style={{
                     margin: 0,
@@ -513,6 +628,19 @@ const TodoGroupSection: React.FC<{
                 )}
             </div>
 
+            {showDropZone && (
+                <div style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    color: isDragOver ? '#1c58d9' : '#999',
+                    fontSize: '13px',
+                    fontStyle: 'italic',
+                    fontWeight: isDragOver ? 600 : 400
+                }}>
+                    {isDragOver ? `Drop to move to ${title}` : `Drag items here to move to ${title}`}
+                </div>
+            )}
+
             {todos.map(todo => (
                 <TodoItemComponent
                     key={todo.id}
@@ -521,6 +649,8 @@ const TodoGroupSection: React.FC<{
                     onToggle={onToggle}
                     onDelete={onDelete}
                     onUpdateAssignee={onUpdateAssignee}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
                 />
             ))}
         </div>
@@ -534,20 +664,76 @@ const TodoItemComponent: React.FC<{
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
     onUpdateAssignee: (todo: TodoItem, assigneeId: string) => void;
-}> = ({ todo, channelMembers, onToggle, onDelete, onUpdateAssignee }) => {
+    onDragStart: (todo: TodoItem) => void;
+    onDragEnd: () => void;
+}> = ({ todo, channelMembers, onToggle, onDelete, onUpdateAssignee, onDragStart, onDragEnd }) => {
+    const [isDragging, setIsDragging] = React.useState(false);
+
+    const handleDragStart = (e: React.DragEvent) => {
+        console.log('Drag started for todo:', todo.text);
+        e.stopPropagation();
+        setIsDragging(true);
+        onDragStart(todo);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', todo.id);
+    };
+
+    const handleDragEnd = (e: React.DragEvent) => {
+        console.log('Drag ended');
+        e.stopPropagation();
+        setIsDragging(false);
+        onDragEnd();
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        console.log('Mouse down on todo item, target:', (e.target as HTMLElement).tagName);
+        // Don't prevent default on the drag handle or when clicking on interactive elements
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
+            // For interactive elements, do nothing - let them work normally
+            return;
+        }
+        // Don't prevent default - we need the browser to start the drag
+    };
+
     return (
-        <div style={{
-            padding: '12px',
-            backgroundColor: todo.completed ? '#f8f9fa' : '#fff',
-            borderRadius: '4px',
-            marginBottom: '8px',
-            border: '1px solid #e9ecef'
-        }}>
+        <div
+            draggable="true"
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onMouseDown={handleMouseDown}
+            style={{
+                padding: '12px',
+                backgroundColor: todo.completed ? '#f8f9fa' : '#fff',
+                borderRadius: '4px',
+                marginBottom: '8px',
+                border: isDragging ? '2px dashed #1c58d9' : '1px solid #e9ecef',
+                opacity: isDragging ? 0.4 : 1,
+                cursor: 'grab',
+                transition: 'opacity 0.2s ease, border 0.2s ease',
+                userSelect: 'none'
+            } as React.CSSProperties}
+        >
             <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <div
+                    style={{
+                        marginRight: '8px',
+                        color: '#999',
+                        fontSize: '16px',
+                        cursor: 'grab',
+                        userSelect: 'none',
+                        lineHeight: '1'
+                    }}
+                    title="Drag to move between groups"
+                >
+                    ⋮⋮
+                </div>
+
                 <input
                     type="checkbox"
                     checked={todo.completed}
                     onChange={() => onToggle(todo)}
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                         marginRight: '10px',
                         marginTop: '3px',
@@ -568,7 +754,10 @@ const TodoItemComponent: React.FC<{
                 </div>
 
                 <button
-                    onClick={() => onDelete(todo.id)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(todo.id);
+                    }}
                     style={{
                         padding: '4px 8px',
                         fontSize: '16px',
@@ -587,13 +776,18 @@ const TodoItemComponent: React.FC<{
 
             <select
                 value={todo.assignee_id || ''}
-                onChange={(e) => onUpdateAssignee(todo, e.target.value)}
+                onChange={(e) => {
+                    e.stopPropagation();
+                    onUpdateAssignee(todo, e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                     width: '100%',
                     padding: '6px 8px',
                     fontSize: '12px',
                     border: '1px solid #ddd',
-                    borderRadius: '3px'
+                    borderRadius: '3px',
+                    cursor: 'pointer'
                 }}
             >
                 <option value="">Unassigned</option>
