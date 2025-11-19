@@ -8,6 +8,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
+      - mattermost
 
   mattermost:
     image: mattermost/mattermost-team-edition:latest
