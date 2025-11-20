@@ -29,7 +29,6 @@ export default class Plugin {
     public initialize(registry: any, store: any) {
         this.store = store;
 
-        // Register RHS component - this returns the toggle action
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
             TodoSidebar,
             'Channel Todos'
@@ -37,7 +36,6 @@ export default class Plugin {
 
         this.toggleRHSPlugin = toggleRHSPlugin;
 
-        // Register channel header button
         registry.registerChannelHeaderButtonAction(
             () => <i className="icon icon-check" style={{ fontSize: '18px' }} />,
             () => {
@@ -47,7 +45,6 @@ export default class Plugin {
             'Open todo list for this channel'
         );
 
-        // Register in channel menu dropdown
         registry.registerChannelHeaderMenuAction(
             'Todo List',
             () => {
@@ -76,6 +73,8 @@ class TodoSidebar extends React.Component<any> {
         showGroupForm: false,
         showTodoForm: false,
         draggedTodo: null as TodoItem | null,
+        dragOverTodoId: null as string | null,
+        dragOverPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
         currentUserId: '',
         _lastChannelId: '',
@@ -107,7 +106,6 @@ class TodoSidebar extends React.Component<any> {
         this.loadTodos();
         this.loadChannelMembers();
 
-        // Poll for channel changes every 500ms
         this.channelCheckInterval = setInterval(() => {
             const currentChannelId = this.getChannelId();
             if (currentChannelId && currentChannelId !== this.state._lastChannelId) {
@@ -234,6 +232,25 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
+    updateTodoText = async (todo: TodoItem, newText: string) => {
+        const channelId = this.getChannelId();
+        if (!channelId || !newText.trim()) return;
+
+        try {
+            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...todo,
+                    text: newText
+                })
+            });
+            this.loadTodos();
+        } catch (error) {
+            console.error('Error updating todo text:', error);
+        }
+    };
+
     deleteTodo = async (todoId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
@@ -324,7 +341,104 @@ class TodoSidebar extends React.Component<any> {
 
     handleDragEnd = () => {
         console.log('handleDragEnd - clearing dragged todo');
-        this.setState({ draggedTodo: null });
+        this.setState({
+            draggedTodo: null,
+            dragOverTodoId: null,
+            dragOverPosition: null
+        });
+    };
+
+    handleDragOverTodo = (todoId: string, position: 'before' | 'after') => {
+        if (this.state.draggedTodo?.id === todoId) {
+            return;
+        }
+        this.setState({
+            dragOverTodoId: todoId,
+            dragOverPosition: position
+        });
+    };
+
+    handleDragLeaveTodo = () => {
+        this.setState({
+            dragOverTodoId: null,
+            dragOverPosition: null
+        });
+    };
+
+    handleDropOnTodo = async (targetTodo: TodoItem, position: 'before' | 'after') => {
+        const { draggedTodo } = this.state;
+        const channelId = this.getChannelId();
+
+        console.log('handleDropOnTodo called:', { draggedTodo, targetTodo, position, channelId });
+
+        if (!draggedTodo || !channelId || draggedTodo.id === targetTodo.id) {
+            this.setState({
+                draggedTodo: null,
+                dragOverTodoId: null,
+                dragOverPosition: null
+            });
+            return;
+        }
+
+        try {
+            const targetGroupId = targetTodo.group_id || null;
+            const todosInGroup = this.state.todos
+                .filter(t => (t.group_id || null) === targetGroupId)
+                .sort((a, b) => {
+                    const aOrder = a.created_at || '';
+                    const bOrder = b.created_at || '';
+                    return aOrder.localeCompare(bOrder);
+                });
+
+            const targetIndex = todosInGroup.findIndex(t => t.id === targetTodo.id);
+            const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+
+            let newOrder: string;
+            if (position === 'before' && targetIndex > 0) {
+                const prevTodo = todosInGroup[targetIndex - 1];
+                const targetOrder = new Date(targetTodo.created_at).getTime();
+                const prevOrder = new Date(prevTodo.created_at).getTime();
+                newOrder = new Date((prevOrder + targetOrder) / 2).toISOString();
+            } else if (position === 'after' && targetIndex < todosInGroup.length - 1) {
+                const nextTodo = todosInGroup[targetIndex + 1];
+                const targetOrder = new Date(targetTodo.created_at).getTime();
+                const nextOrder = new Date(nextTodo.created_at).getTime();
+                newOrder = new Date((targetOrder + nextOrder) / 2).toISOString();
+            } else if (position === 'before') {
+                newOrder = new Date(new Date(targetTodo.created_at).getTime() - 1000).toISOString();
+            } else {
+                newOrder = new Date(new Date(targetTodo.created_at).getTime() + 1000).toISOString();
+            }
+
+            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...draggedTodo,
+                    group_id: targetGroupId || undefined,
+                    created_at: newOrder
+                })
+            });
+
+            if (response.ok) {
+                console.log('Todo reordered successfully');
+                this.setState({
+                    draggedTodo: null,
+                    dragOverTodoId: null,
+                    dragOverPosition: null
+                });
+                this.loadTodos();
+            } else {
+                console.error('Failed to reorder todo:', response.status);
+            }
+        } catch (error) {
+            console.error('Error reordering todo:', error);
+            this.setState({
+                draggedTodo: null,
+                dragOverTodoId: null,
+                dragOverPosition: null
+            });
+        }
     };
 
     handleDrop = async (targetGroupId: string | null) => {
@@ -387,16 +501,18 @@ class TodoSidebar extends React.Component<any> {
             });
         }
 
-        return filtered;
+        return filtered.sort((a, b) => {
+            const aOrder = a.created_at || '';
+            const bOrder = b.created_at || '';
+            return aOrder.localeCompare(bOrder);
+        });
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks, dragOverTodoId, dragOverPosition } = this.state;
 
-        // Theme is passed as a prop by Mattermost
         const theme = this.props.theme || {};
 
-        // Theme colors with fallbacks
         const centerChannelBg = theme.centerChannelBg || '#ffffff';
         const centerChannelColor = theme.centerChannelColor || '#333333';
         const buttonBg = theme.buttonBg || '#1c58d9';
@@ -404,7 +520,6 @@ class TodoSidebar extends React.Component<any> {
         const onlineIndicator = theme.onlineIndicator || '#28a745';
         const errorTextColor = theme.errorTextColor || '#dc3545';
 
-        // Derived colors
         const subtleBackground = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
         const borderColor = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
         const subtleText = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
@@ -412,7 +527,7 @@ class TodoSidebar extends React.Component<any> {
         return (
             <div
                 style={{
-                    height: '100%',
+                    height: 'calc(100% - 50px)',
                     display: 'flex',
                     flexDirection: 'column',
                     padding: '0',
@@ -424,7 +539,6 @@ class TodoSidebar extends React.Component<any> {
                     style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
                     onDragOver={(e) => e.preventDefault()}
                 >
-                    {/* Filter Toggle */}
                     <div style={{
                         marginBottom: '20px',
                         display: 'flex',
@@ -470,7 +584,6 @@ class TodoSidebar extends React.Component<any> {
                         </button>
                     </div>
 
-                    {/* Add Task/Group Buttons */}
                     <div style={{
                         marginBottom: '20px',
                         display: 'flex',
@@ -512,7 +625,6 @@ class TodoSidebar extends React.Component<any> {
                         </button>
                     </div>
 
-                    {/* Add Todo Form */}
                     {showTodoForm && (
                         <div style={{ marginBottom: '20px' }}>
                             <input
@@ -571,7 +683,6 @@ class TodoSidebar extends React.Component<any> {
                         </div>
                     )}
 
-                    {/* Group Management */}
                     {showGroupForm && (
                         <div style={{ marginBottom: '20px' }}>
                             <input
@@ -619,10 +730,16 @@ class TodoSidebar extends React.Component<any> {
                         onToggle={this.toggleTodo}
                         onDelete={this.deleteTodo}
                         onToggleAssignee={this.toggleAssignee}
+                        onUpdateText={this.updateTodoText}
                         onDragStart={this.handleDragStart}
                         onDragEnd={this.handleDragEnd}
                         onDrop={this.handleDrop}
+                        onDragOverTodo={this.handleDragOverTodo}
+                        onDragLeaveTodo={this.handleDragLeaveTodo}
+                        onDropOnTodo={this.handleDropOnTodo}
                         isDragging={!!draggedTodo}
+                        dragOverTodoId={dragOverTodoId}
+                        dragOverPosition={dragOverPosition}
                         theme={theme}
                     />
 
@@ -636,11 +753,17 @@ class TodoSidebar extends React.Component<any> {
                             onToggle={this.toggleTodo}
                             onDelete={this.deleteTodo}
                             onToggleAssignee={this.toggleAssignee}
+                            onUpdateText={this.updateTodoText}
                             onDeleteGroup={() => this.deleteGroup(group.id)}
                             onDragStart={this.handleDragStart}
                             onDragEnd={this.handleDragEnd}
                             onDrop={this.handleDrop}
+                            onDragOverTodo={this.handleDragOverTodo}
+                            onDragLeaveTodo={this.handleDragLeaveTodo}
+                            onDropOnTodo={this.handleDropOnTodo}
                             isDragging={!!draggedTodo}
+                            dragOverTodoId={dragOverTodoId}
+                            dragOverPosition={dragOverPosition}
                             theme={theme}
                         />
                     ))}
@@ -669,16 +792,21 @@ const TodoGroupSection: React.FC<{
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
     onToggleAssignee: (todo: TodoItem, userId: string) => void;
+    onUpdateText: (todo: TodoItem, newText: string) => void;
     onDeleteGroup?: () => void;
     onDragStart: (todo: TodoItem) => void;
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
+    onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
+    onDragLeaveTodo: () => void;
+    onDropOnTodo: (todo: TodoItem, position: 'before' | 'after') => void;
     isDragging: boolean;
+    dragOverTodoId: string | null;
+    dragOverPosition: 'before' | 'after' | null;
     theme: any;
-}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging, theme }) => {
+}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, theme }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
 
-    // Theme colors with fallbacks
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
     const centerChannelColor = theme?.centerChannelColor || '#333333';
     const buttonBg = theme?.buttonBg || '#1c58d9';
@@ -754,10 +882,10 @@ const TodoGroupSection: React.FC<{
         return (
             <div
                 style={{
-                    marginBottom: '20px',
+                    marginBottom: '0px',
                     minHeight: '60px',
                     borderRadius: '8px',
-                    padding: '12px',
+                    padding: '8px',
                     border: '2px solid transparent',
                     position: 'relative',
                     transition: 'all 0.2s ease'
@@ -802,12 +930,12 @@ const TodoGroupSection: React.FC<{
     return (
         <div
             style={{
-                marginBottom: '20px',
+                marginBottom: '0px',
                 minHeight: showDropZone ? '80px' : 'auto',
                 backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
                 border: isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none'),
                 borderRadius: '8px',
-                padding: '12px',
+                padding: '8px',
                 transition: 'all 0.2s ease',
                 position: 'relative'
             }}
@@ -870,8 +998,15 @@ const TodoGroupSection: React.FC<{
                     onToggle={onToggle}
                     onDelete={onDelete}
                     onToggleAssignee={onToggleAssignee}
+                    onUpdateText={onUpdateText}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
+                    onDragOverTodo={onDragOverTodo}
+                    onDragLeaveTodo={onDragLeaveTodo}
+                    onDropOnTodo={onDropOnTodo}
+                    isDraggingItem={isDragging}
+                    isDropTarget={dragOverTodoId === todo.id}
+                    dropPosition={dragOverTodoId === todo.id ? dragOverPosition : null}
                     theme={theme}
                 />
             ))}
@@ -886,15 +1021,24 @@ const TodoItemComponent: React.FC<{
     onToggle: (todo: TodoItem) => void;
     onDelete: (todoId: string) => void;
     onToggleAssignee: (todo: TodoItem, userId: string) => void;
+    onUpdateText: (todo: TodoItem, newText: string) => void;
     onDragStart: (todo: TodoItem) => void;
     onDragEnd: () => void;
+    onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
+    onDragLeaveTodo: () => void;
+    onDropOnTodo: (todo: TodoItem, position: 'before' | 'after') => void;
+    isDraggingItem: boolean;
+    isDropTarget: boolean;
+    dropPosition: 'before' | 'after' | null;
     theme: any;
-}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onDragStart, onDragEnd, theme }) => {
+}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDraggingItem, isDropTarget, dropPosition, theme }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editText, setEditText] = React.useState(todo.text);
     const popupRef = React.useRef<HTMLDivElement>(null);
+    const inputRef = React.useRef<HTMLInputElement>(null);
 
-    // Theme colors with fallbacks
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
     const centerChannelColor = theme?.centerChannelColor || '#333333';
     const buttonBg = theme?.buttonBg || '#1c58d9';
@@ -942,6 +1086,13 @@ const TodoItemComponent: React.FC<{
         }
     }, [showAssigneePopup]);
 
+    React.useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
     const handleDragStart = (e: React.DragEvent) => {
         setIsDragging(true);
         e.dataTransfer.effectAllowed = 'move';
@@ -955,10 +1106,6 @@ const TodoItemComponent: React.FC<{
         onDragEnd();
     };
 
-    const handleDrag = (e: React.DragEvent) => {
-        // Continuously fires during drag
-    };
-
     const handleMouseDown = (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
@@ -966,231 +1113,360 @@ const TodoItemComponent: React.FC<{
         }
     };
 
+    const handleItemDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!isDraggingItem) return;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const mouseY = e.clientY;
+
+        const position = mouseY < midpoint ? 'before' : 'after';
+        onDragOverTodo(todo.id, position);
+    };
+
+    const handleItemDragLeave = (e: React.DragEvent) => {
+        const target = e.currentTarget as HTMLElement;
+        const relatedTarget = e.relatedTarget as HTMLElement;
+
+        if (!relatedTarget || !target.contains(relatedTarget)) {
+            onDragLeaveTodo();
+        }
+    };
+
+    const handleItemDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!dropPosition) return;
+
+        onDropOnTodo(todo, dropPosition);
+    };
+
+    const handleTextClick = () => {
+        if (!todo.completed) {
+            setIsEditing(true);
+            setEditText(todo.text);
+        }
+    };
+
+    const handleSaveEdit = () => {
+        if (editText.trim() && editText !== todo.text) {
+            onUpdateText(todo, editText.trim());
+        }
+        setIsEditing(false);
+    };
+
+    const handleCancelEdit = () => {
+        setEditText(todo.text);
+        setIsEditing(false);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSaveEdit();
+        } else if (e.key === 'Escape') {
+            handleCancelEdit();
+        }
+    };
+
     const assigneeIds = todo.assignee_ids || [];
     const assignedMembers = channelMembers.filter(m => assigneeIds.includes(m.id));
 
+    const dropIndicatorColor = buttonBg;
+
     return (
-        <div
-            draggable="true"
-            onDragStart={handleDragStart}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
-            onMouseDown={handleMouseDown}
-            onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            }}
-            style={{
-                padding: '12px',
-                backgroundColor: todo.completed ? completedBg : centerChannelBg,
-                borderRadius: '4px',
-                marginBottom: '8px',
-                border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
-                opacity: isDragging ? 0.4 : 1,
-                cursor: 'grab',
-                transition: 'opacity 0.2s ease, border 0.2s ease',
-                userSelect: 'none'
-            } as React.CSSProperties}
-        >
-            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                <div
-                    style={{
-                        marginRight: '8px',
-                        color: dragHandleColor,
-                        fontSize: '16px',
-                        cursor: 'grab',
-                        userSelect: 'none',
-                        lineHeight: '1'
-                    }}
-                    title="Drag to move between groups"
-                >
-                    ⋮⋮
-                </div>
-
-                <input
-                    type="checkbox"
-                    checked={todo.completed}
-                    onChange={() => onToggle(todo)}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                        marginRight: '10px',
-                        marginTop: '3px',
-                        cursor: 'pointer',
-                        flexShrink: 0
-                    }}
-                />
-
+        <div style={{ position: 'relative' }}>
+            {isDropTarget && dropPosition === 'before' && (
                 <div style={{
-                    flex: 1,
-                    textDecoration: todo.completed ? 'line-through' : 'none',
-                    color: todo.completed ? completedText : centerChannelColor,
-                    wordBreak: 'break-word',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                }}>
-                    {todo.text}
-                </div>
+                    position: 'absolute',
+                    top: '-4px',
+                    left: '0',
+                    right: '0',
+                    height: '3px',
+                    backgroundColor: dropIndicatorColor,
+                    borderRadius: '2px',
+                    zIndex: 10,
+                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                }} />
+            )}
 
-                <div style={{ position: 'relative', marginLeft: '10px', marginRight: '4px' }} ref={popupRef}>
+            <div
+                draggable="true"
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onMouseDown={handleMouseDown}
+                onDragOver={handleItemDragOver}
+                onDragLeave={handleItemDragLeave}
+                onDrop={handleItemDrop}
+                style={{
+                    padding: '12px',
+                    backgroundColor: todo.completed ? completedBg : centerChannelBg,
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
+                    opacity: isDragging ? 0.4 : 1,
+                    cursor: 'grab',
+                    transition: 'opacity 0.2s ease, border 0.2s ease',
+                    userSelect: 'none',
+                    position: 'relative'
+                } as React.CSSProperties}
+            >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
                     <div
-                        onClick={() => setShowAssigneePopup(!showAssigneePopup)}
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            padding: '2px'
+                            marginRight: '8px',
+                            color: dragHandleColor,
+                            fontSize: '16px',
+                            cursor: 'grab',
+                            userSelect: 'none',
+                            lineHeight: '1'
                         }}
-                        title="Assign members"
+                        title="Drag to move between groups"
                     >
-                        {assignedMembers.length === 0 ? (
-                            <div style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '50%',
-                                backgroundColor: assigneeBg,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '16px',
-                                color: dragHandleColor
-                            }}>
-                                <i className="icon icon-account-outline" />
-                            </div>
+                        ⋮⋮
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        checked={todo.completed}
+                        onChange={() => onToggle(todo)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            marginRight: '10px',
+                            marginTop: '3px',
+                            cursor: 'pointer',
+                            flexShrink: 0
+                        }}
+                    />
+
+                    <div style={{ flex: 1 }}>
+                        {isEditing ? (
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onBlur={handleSaveEdit}
+                                style={{
+                                    width: '100%',
+                                    padding: '4px 8px',
+                                    fontSize: '14px',
+                                    border: `2px solid ${buttonBg}`,
+                                    borderRadius: '3px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor,
+                                    outline: 'none'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            />
                         ) : (
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                {assignedMembers.slice(0, 3).map((member, index) => (
-                                    <img
-                                        key={member.id}
-                                        src={`/api/v4/users/${member.id}/image`}
-                                        alt={member.username}
-                                        style={{
-                                            width: '28px',
-                                            height: '28px',
-                                            borderRadius: '50%',
-                                            border: `2px solid ${centerChannelBg}`,
-                                            marginLeft: index > 0 ? '-10px' : '0',
-                                            position: 'relative',
-                                            zIndex: 3 - index
-                                        }}
-                                        title={member.username}
-                                    />
-                                ))}
-                                {assignedMembers.length > 3 && (
-                                    <div style={{
-                                        width: '28px',
-                                        height: '28px',
-                                        borderRadius: '50%',
-                                        backgroundColor: dragHandleColor,
-                                        color: centerChannelBg,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: '11px',
-                                        fontWeight: 'bold',
-                                        border: `2px solid ${centerChannelBg}`,
-                                        marginLeft: '-10px',
-                                        position: 'relative',
-                                        zIndex: 0
-                                    }}>
-                                        +{assignedMembers.length - 3}
-                                    </div>
-                                )}
+                            <div
+                                onClick={handleTextClick}
+                                style={{
+                                    textDecoration: todo.completed ? 'line-through' : 'none',
+                                    color: todo.completed ? completedText : centerChannelColor,
+                                    wordBreak: 'break-word',
+                                    fontSize: '14px',
+                                    lineHeight: '1.5',
+                                    cursor: todo.completed ? 'default' : 'text',
+                                    padding: '4px 8px',
+                                    borderRadius: '3px',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!todo.completed) {
+                                        e.currentTarget.style.backgroundColor = hoverBg;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={todo.completed ? '' : 'Click to edit'}
+                            >
+                                {todo.text}
                             </div>
                         )}
                     </div>
 
-                    {showAssigneePopup && (
-                        <div style={{
-                            position: 'absolute',
-                            top: '100%',
-                            right: 0,
-                            marginTop: '4px',
-                            backgroundColor: centerChannelBg,
-                            border: `1px solid ${popupBorder}`,
-                            borderRadius: '4px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            zIndex: 1000,
-                            minWidth: '200px',
-                            maxHeight: '300px',
-                            overflowY: 'auto'
-                        }}>
-                            <div style={{
-                                padding: '8px 12px',
-                                borderBottom: `1px solid ${borderColor}`,
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                color: dragHandleColor
-                            }}>
-                                Assign to
-                            </div>
-                            {channelMembers.map(member => {
-                                const isAssigned = assigneeIds.includes(member.id);
-                                return (
-                                    <div
-                                        key={member.id}
-                                        onClick={() => onToggleAssignee(todo, member.id)}
-                                        style={{
-                                            padding: '8px 12px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            cursor: 'pointer',
-                                            backgroundColor: isAssigned ? selectedBg : 'transparent',
-                                            borderLeft: isAssigned ? `3px solid ${buttonBg}` : '3px solid transparent'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isAssigned) {
-                                                e.currentTarget.style.backgroundColor = hoverBg;
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isAssigned) {
-                                                e.currentTarget.style.backgroundColor = 'transparent';
-                                            }
-                                        }}
-                                    >
+                    <div style={{ position: 'relative', marginLeft: '10px', marginRight: '4px' }} ref={popupRef}>
+                        <div
+                            onClick={() => setShowAssigneePopup(!showAssigneePopup)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                padding: '2px'
+                            }}
+                            title="Assign members"
+                        >
+                            {assignedMembers.length === 0 ? (
+                                <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    backgroundColor: assigneeBg,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '16px',
+                                    color: dragHandleColor
+                                }}>
+                                    <i className="icon icon-account-outline" />
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    {assignedMembers.slice(0, 3).map((member, index) => (
                                         <img
+                                            key={member.id}
                                             src={`/api/v4/users/${member.id}/image`}
                                             alt={member.username}
                                             style={{
-                                                width: '24px',
-                                                height: '24px',
+                                                width: '28px',
+                                                height: '28px',
                                                 borderRadius: '50%',
-                                                marginRight: '8px'
+                                                border: `2px solid ${centerChannelBg}`,
+                                                marginLeft: index > 0 ? '-10px' : '0',
+                                                position: 'relative',
+                                                zIndex: 3 - index
                                             }}
+                                            title={member.username}
                                         />
-                                        <span style={{ flex: 1, fontSize: '14px', color: centerChannelColor }}>
-                                            {member.username}
-                                        </span>
-                                        {isAssigned && (
-                                            <i className="icon icon-check" style={{ color: buttonBg, fontSize: '16px' }} />
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                    ))}
+                                    {assignedMembers.length > 3 && (
+                                        <div style={{
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '50%',
+                                            backgroundColor: dragHandleColor,
+                                            color: centerChannelBg,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '11px',
+                                            fontWeight: 'bold',
+                                            border: `2px solid ${centerChannelBg}`,
+                                            marginLeft: '-10px',
+                                            position: 'relative',
+                                            zIndex: 0
+                                        }}>
+                                            +{assignedMembers.length - 3}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
 
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(todo.id);
-                    }}
-                    style={{
-                        padding: '4px 8px',
-                        fontSize: '16px',
-                        color: errorTextColor,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        marginLeft: '8px'
-                    }}
-                    title="Delete todo"
-                >
-                    ×
-                </button>
+                        {showAssigneePopup && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '4px',
+                                backgroundColor: centerChannelBg,
+                                border: `1px solid ${popupBorder}`,
+                                borderRadius: '4px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                zIndex: 1000,
+                                minWidth: '200px',
+                                maxHeight: '300px',
+                                overflowY: 'auto'
+                            }}>
+                                <div style={{
+                                    padding: '8px 12px',
+                                    borderBottom: `1px solid ${borderColor}`,
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: dragHandleColor
+                                }}>
+                                    Assign to
+                                </div>
+                                {channelMembers.map(member => {
+                                    const isAssigned = assigneeIds.includes(member.id);
+                                    return (
+                                        <div
+                                            key={member.id}
+                                            onClick={() => onToggleAssignee(todo, member.id)}
+                                            style={{
+                                                padding: '8px 12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                cursor: 'pointer',
+                                                backgroundColor: isAssigned ? selectedBg : 'transparent',
+                                                borderLeft: isAssigned ? `3px solid ${buttonBg}` : '3px solid transparent'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isAssigned) {
+                                                    e.currentTarget.style.backgroundColor = hoverBg;
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isAssigned) {
+                                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                                }
+                                            }}
+                                        >
+                                            <img
+                                                src={`/api/v4/users/${member.id}/image`}
+                                                alt={member.username}
+                                                style={{
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '50%',
+                                                    marginRight: '8px'
+                                                }}
+                                            />
+                                            <span style={{ flex: 1, fontSize: '14px', color: centerChannelColor }}>
+                                                {member.username}
+                                            </span>
+                                            {isAssigned && (
+                                                <i className="icon icon-check" style={{ color: buttonBg, fontSize: '16px' }} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(todo.id);
+                        }}
+                        style={{
+                            padding: '4px 8px',
+                            fontSize: '16px',
+                            color: errorTextColor,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            marginLeft: '8px'
+                        }}
+                        title="Delete todo"
+                    >
+                        ×
+                    </button>
+                </div>
             </div>
+
+            {isDropTarget && dropPosition === 'after' && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: '0',
+                    right: '0',
+                    height: '3px',
+                    backgroundColor: dropIndicatorColor,
+                    borderRadius: '2px',
+                    zIndex: 10,
+                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                }} />
+            )}
         </div>
     );
 };
