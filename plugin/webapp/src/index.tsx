@@ -24,21 +24,24 @@ interface ChannelTodoList {
 // Main Plugin Class
 export default class Plugin {
     private store: any = null;
+    private toggleRHSPlugin: any = null;
 
     public initialize(registry: any, store: any) {
         this.store = store;
+
+        // Register RHS component - this returns the toggle action
+        const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
+            TodoSidebar,
+            'Channel Todos'
+        );
+
+        this.toggleRHSPlugin = toggleRHSPlugin;
 
         // Register channel header button
         registry.registerChannelHeaderButtonAction(
             () => <i className="icon icon-check" style={{ fontSize: '18px' }} />,
             () => {
-                const state = store.getState();
-                const currentChannelId = state.entities?.channels?.currentChannelId;
-                const channel = state.entities?.channels?.channels?.[currentChannelId];
-
-                if (channel) {
-                    this.showTodoModal(channel);
-                }
+                store.dispatch(toggleRHSPlugin);
             },
             'Todo List',
             'Open todo list for this channel'
@@ -47,42 +50,20 @@ export default class Plugin {
         // Register in channel menu dropdown
         registry.registerChannelHeaderMenuAction(
             'Todo List',
-            (channelId: string) => {
-                const state = store.getState();
-                const channel = state.entities?.channels?.channels?.[channelId];
-                if (channel) {
-                    this.showTodoModal(channel);
-                }
+            () => {
+                store.dispatch(toggleRHSPlugin);
             },
             () => <i className="icon icon-check" />
         );
     }
 
-    private showTodoModal(channel: any) {
-        // Create a modal div
-        const modalRoot = document.createElement('div');
-        modalRoot.id = 'todo-modal-root';
-        document.body.appendChild(modalRoot);
-
-        // Import React and ReactDOM from window
-        const React = (window as any).React;
-        const ReactDOM = (window as any).ReactDOM;
-
-        const closeModal = () => {
-            ReactDOM.unmountComponentAtNode(modalRoot);
-            document.body.removeChild(modalRoot);
-        };
-
-        // Render the modal
-        ReactDOM.render(
-            React.createElement(TodoModal, { channel, onClose: closeModal }),
-            modalRoot
-        );
+    public uninitialize() {
+        // Cleanup
     }
 }
 
-// Modal Component
-class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
+// Sidebar Component (for RHS)
+class TodoSidebar extends React.Component<any> {
     state = {
         todos: [] as TodoItem[],
         groups: [] as TodoGroup[],
@@ -95,25 +76,33 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     componentDidMount() {
+        console.log('TodoSidebar mounted with props:', this.props);
         this.loadTodos();
         this.loadChannelMembers();
-
-        // Add escape key listener
-        document.addEventListener('keydown', this.handleEscape);
     }
 
-    componentWillUnmount() {
-        document.removeEventListener('keydown', this.handleEscape);
-    }
+    componentDidUpdate(prevProps: any) {
+        console.log('TodoSidebar updated, props:', this.props);
+        // Reload when channel changes
+        const prevChannelId = this.getChannelId(prevProps);
+        const currentChannelId = this.getChannelId(this.props);
 
-    handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            this.props.onClose();
+        if (prevChannelId !== currentChannelId) {
+            this.loadTodos();
+            this.loadChannelMembers();
         }
-    };
+    }
+
+    getChannelId(props = this.props) {
+        // Try multiple ways to get the channel ID
+        return props.channelId ||
+            props.channel?.id ||
+            (window as any).store?.getState()?.entities?.channels?.currentChannelId;
+    }
 
     loadTodos = async () => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
+        console.log('Loading todos for channel:', channelId);
         if (!channelId) return;
 
         try {
@@ -126,7 +115,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     loadChannelMembers = async () => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
@@ -145,10 +134,12 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
 
     addTodo = async () => {
         const { newTodoText, selectedGroup } = this.state;
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
+        console.log('Adding todo:', newTodoText, 'for channel:', channelId);
         if (!newTodoText.trim() || !channelId) return;
 
         try {
+            console.log('Sending POST request to add todo');
             const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -159,9 +150,12 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
                 })
             });
 
+            console.log('Add todo response:', response.status, response.ok);
             if (response.ok) {
                 this.setState({ newTodoText: '' });
                 this.loadTodos();
+            } else {
+                console.error('Failed to add todo:', await response.text());
             }
         } catch (error) {
             console.error('Error adding todo:', error);
@@ -169,7 +163,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     toggleTodo = async (todo: TodoItem) => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
@@ -188,7 +182,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     deleteTodo = async (todoId: string) => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
@@ -202,7 +196,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     updateTodoAssignee = async (todo: TodoItem, assigneeId: string) => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
@@ -222,24 +216,31 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
 
     addGroup = async () => {
         const { newGroupName } = this.state;
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
+        console.log('Adding group:', newGroupName, 'for channel:', channelId);
         if (!newGroupName.trim() || !channelId) return;
 
         try {
-            await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+            console.log('Sending POST request to add group');
+            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: newGroupName })
             });
-            this.setState({ newGroupName: '', showGroupForm: false });
-            this.loadTodos();
+            console.log('Add group response:', response.status, response.ok);
+            if (response.ok) {
+                this.setState({ newGroupName: '', showGroupForm: false });
+                this.loadTodos();
+            } else {
+                console.error('Failed to add group:', await response.text());
+            }
         } catch (error) {
             console.error('Error adding group:', error);
         }
     };
 
     deleteGroup = async (groupId: string) => {
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
         if (!channelId) return;
 
         try {
@@ -267,7 +268,7 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
 
     handleDrop = async (targetGroupId: string | null) => {
         const { draggedTodo } = this.state;
-        const channelId = this.props.channel?.id;
+        const channelId = this.getChannelId();
 
         console.log('handleDrop called:', { draggedTodo, targetGroupId, channelId });
 
@@ -320,59 +321,17 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
 
     render() {
         const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, draggedTodo } = this.state;
-        const channelName = this.props.channel?.display_name || 'Channel';
+        const channelName = this.props.channelDisplayName || 'Channel';
 
         return (
             <div
                 style={{
-                    position: 'fixed',
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '400px',
-                    backgroundColor: '#fff',
-                    boxShadow: '-2px 0 8px rgba(0,0,0,0.15)',
-                    zIndex: 9999,
+                    height: '100%',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    padding: '0'
                 }}
             >
-                {/* Header */}
-                <div style={{
-                    padding: '16px 20px',
-                    borderBottom: '1px solid #ddd',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <div>
-                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-                            Todo List
-                        </h3>
-                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                            {channelName}
-                        </div>
-                    </div>
-                    <button
-                        onClick={this.props.onClose}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            fontSize: '24px',
-                            cursor: 'pointer',
-                            padding: '0',
-                            width: '32px',
-                            height: '32px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#666'
-                        }}
-                    >
-                        ×
-                    </button>
-                </div>
-
                 {/* Content */}
                 <div
                     style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
