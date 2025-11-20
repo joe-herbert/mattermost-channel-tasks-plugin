@@ -428,32 +428,46 @@ class TodoSidebar extends React.Component<any> {
                     <div style={{
                         marginBottom: '20px',
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px 12px',
-                        backgroundColor: subtleBackground,
+                        gap: '0',
+                        border: `1px solid ${borderColor}`,
                         borderRadius: '4px',
-                        border: `1px solid ${borderColor}`
+                        overflow: 'hidden'
                     }}>
-                        <input
-                            type="checkbox"
-                            id="filter-my-tasks"
-                            checked={filterMyTasks}
-                            onChange={(e) => this.setState({ filterMyTasks: e.target.checked })}
-                            style={{ cursor: 'pointer' }}
-                        />
-                        <label
-                            htmlFor="filter-my-tasks"
+                        <button
+                            onClick={() => this.setState({ filterMyTasks: false })}
                             style={{
-                                cursor: 'pointer',
+                                flex: 1,
+                                padding: '8px 16px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                color: centerChannelColor,
+                                backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
+                                color: !filterMyTasks ? buttonColor : centerChannelColor,
+                                border: 'none',
+                                borderRight: `1px solid ${borderColor}`,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
                                 userSelect: 'none'
                             }}
                         >
-                            Show only my tasks
-                        </label>
+                            All
+                        </button>
+                        <button
+                            onClick={() => this.setState({ filterMyTasks: true })}
+                            style={{
+                                flex: 1,
+                                padding: '8px 16px',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
+                                color: filterMyTasks ? buttonColor : centerChannelColor,
+                                border: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                userSelect: 'none'
+                            }}
+                        >
+                            Assigned to me
+                        </button>
                     </div>
 
                     {/* Add Task/Group Buttons */}
