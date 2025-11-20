@@ -14,6 +14,7 @@ interface TodoItem {
 interface TodoGroup {
     id: string;
     name: string;
+    order?: string;
 }
 
 interface ChannelTodoList {
@@ -31,7 +32,7 @@ export default class Plugin {
 
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
             TodoSidebar,
-            'Channel Todos'
+            'Channel Tasks'
         );
 
         this.toggleRHSPlugin = toggleRHSPlugin;
@@ -41,12 +42,12 @@ export default class Plugin {
             () => {
                 store.dispatch(toggleRHSPlugin);
             },
-            'Todo List',
-            'Open todo list for this channel'
+            'Task List',
+            'Open task list for this channel'
         );
 
         registry.registerChannelHeaderMenuAction(
-            'Todo List',
+            'Task List',
             () => {
                 store.dispatch(toggleRHSPlugin);
             },
@@ -64,7 +65,7 @@ class TodoSidebar extends React.Component<any> {
     private channelCheckInterval: any = null;
 
     state = {
-        todos: [] as TodoItem[],
+        tasks: [] as TodoItem[],
         groups: [] as TodoGroup[],
         newTodoText: '',
         newGroupName: '',
@@ -75,6 +76,9 @@ class TodoSidebar extends React.Component<any> {
         draggedTodo: null as TodoItem | null,
         dragOverTodoId: null as string | null,
         dragOverPosition: null as 'before' | 'after' | null,
+        draggedGroup: null as TodoGroup | null,
+        dragOverGroupId: null as string | null,
+        dragOverGroupPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
         currentUserId: '',
         _lastChannelId: '',
@@ -153,15 +157,15 @@ class TodoSidebar extends React.Component<any> {
 
     loadTodos = async () => {
         const channelId = this.getChannelId();
-        console.log('Loading todos for channel:', channelId);
+        console.log('Loading tasks for channel:', channelId);
         if (!channelId) return;
 
         try {
             const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`);
             const data: ChannelTodoList = await response.json();
-            this.setState({ todos: data.items, groups: data.groups });
+            this.setState({ tasks: data.items, groups: data.groups });
         } catch (error) {
-            console.error('Error loading todos:', error);
+            console.error('Error loading tasks:', error);
         }
     };
 
@@ -186,11 +190,11 @@ class TodoSidebar extends React.Component<any> {
     addTodo = async () => {
         const { newTodoText, selectedGroup } = this.state;
         const channelId = this.getChannelId();
-        console.log('Adding todo:', newTodoText, 'for channel:', channelId);
+        console.log('Adding task:', newTodoText, 'for channel:', channelId);
         if (!newTodoText.trim() || !channelId) return;
 
         try {
-            console.log('Sending POST request to add todo');
+            console.log('Sending POST request to add task');
             const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -201,19 +205,19 @@ class TodoSidebar extends React.Component<any> {
                 })
             });
 
-            console.log('Add todo response:', response.status, response.ok);
+            console.log('Add task response:', response.status, response.ok);
             if (response.ok) {
                 this.setState({ newTodoText: '' });
                 this.loadTodos();
             } else {
-                console.error('Failed to add todo:', await response.text());
+                console.error('Failed to add task:', await response.text());
             }
         } catch (error) {
-            console.error('Error adding todo:', error);
+            console.error('Error adding task:', error);
         }
     };
 
-    toggleTodo = async (todo: TodoItem) => {
+    toggleTodo = async (task: TodoItem) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
@@ -222,17 +226,17 @@ class TodoSidebar extends React.Component<any> {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...todo,
-                    completed: !todo.completed
+                    ...task,
+                    completed: !task.completed
                 })
             });
             this.loadTodos();
         } catch (error) {
-            console.error('Error toggling todo:', error);
+            console.error('Error toggling task:', error);
         }
     };
 
-    updateTodoText = async (todo: TodoItem, newText: string) => {
+    updateTodoText = async (task: TodoItem, newText: string) => {
         const channelId = this.getChannelId();
         if (!channelId || !newText.trim()) return;
 
@@ -241,13 +245,13 @@ class TodoSidebar extends React.Component<any> {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...todo,
+                    ...task,
                     text: newText
                 })
             });
             this.loadTodos();
         } catch (error) {
-            console.error('Error updating todo text:', error);
+            console.error('Error updating task text:', error);
         }
     };
 
@@ -261,15 +265,15 @@ class TodoSidebar extends React.Component<any> {
             });
             this.loadTodos();
         } catch (error) {
-            console.error('Error deleting todo:', error);
+            console.error('Error deleting task:', error);
         }
     };
 
-    toggleAssignee = async (todo: TodoItem, userId: string) => {
+    toggleAssignee = async (task: TodoItem, userId: string) => {
         const channelId = this.getChannelId();
         if (!channelId) return;
 
-        const currentAssignees = todo.assignee_ids || [];
+        const currentAssignees = task.assignee_ids || [];
 
         let newAssignees;
         if (currentAssignees.includes(userId)) {
@@ -283,7 +287,7 @@ class TodoSidebar extends React.Component<any> {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...todo,
+                    ...task,
                     assignee_ids: newAssignees
                 })
             });
@@ -332,15 +336,15 @@ class TodoSidebar extends React.Component<any> {
         }
     };
 
-    handleDragStart = (todo: TodoItem) => {
-        console.log('Parent: handleDragStart called for todo:', todo.text);
+    handleDragStart = (task: TodoItem) => {
+        console.log('Parent: handleDragStart called for task:', task.text);
         setTimeout(() => {
-            this.setState({ draggedTodo: todo });
+            this.setState({ draggedTodo: task });
         }, 0);
     };
 
     handleDragEnd = () => {
-        console.log('handleDragEnd - clearing dragged todo');
+        console.log('handleDragEnd - clearing dragged task');
         this.setState({
             draggedTodo: null,
             dragOverTodoId: null,
@@ -382,7 +386,7 @@ class TodoSidebar extends React.Component<any> {
 
         try {
             const targetGroupId = targetTodo.group_id || null;
-            const todosInGroup = this.state.todos
+            const todosInGroup = this.state.tasks
                 .filter(t => (t.group_id || null) === targetGroupId)
                 .sort((a, b) => {
                     const aOrder = a.created_at || '';
@@ -391,7 +395,6 @@ class TodoSidebar extends React.Component<any> {
                 });
 
             const targetIndex = todosInGroup.findIndex(t => t.id === targetTodo.id);
-            const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
 
             let newOrder: string;
             if (position === 'before' && targetIndex > 0) {
@@ -421,7 +424,7 @@ class TodoSidebar extends React.Component<any> {
             });
 
             if (response.ok) {
-                console.log('Todo reordered successfully');
+                console.log('Task reordered successfully');
                 this.setState({
                     draggedTodo: null,
                     dragOverTodoId: null,
@@ -429,10 +432,10 @@ class TodoSidebar extends React.Component<any> {
                 });
                 this.loadTodos();
             } else {
-                console.error('Failed to reorder todo:', response.status);
+                console.error('Failed to reorder task:', response.status);
             }
         } catch (error) {
-            console.error('Error reordering todo:', error);
+            console.error('Error reordering task:', error);
             this.setState({
                 draggedTodo: null,
                 dragOverTodoId: null,
@@ -448,7 +451,7 @@ class TodoSidebar extends React.Component<any> {
         console.log('handleDrop called:', { draggedTodo, targetGroupId, channelId });
 
         if (!draggedTodo || !channelId) {
-            console.log('No dragged todo or channel ID');
+            console.log('No dragged task or channel ID');
             return;
         }
 
@@ -459,7 +462,7 @@ class TodoSidebar extends React.Component<any> {
             return;
         }
 
-        console.log('Updating todo group from', currentGroupId, 'to', targetGroupId);
+        console.log('Updating task group from', currentGroupId, 'to', targetGroupId);
 
         try {
             const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/todos?channel_id=${channelId}`, {
@@ -472,31 +475,137 @@ class TodoSidebar extends React.Component<any> {
             });
 
             if (response.ok) {
-                console.log('Todo updated successfully');
+                console.log('Task updated successfully');
                 this.setState({ draggedTodo: null });
                 this.loadTodos();
             } else {
-                console.error('Failed to update todo:', response.status);
+                console.error('Failed to update task:', response.status);
             }
         } catch (error) {
-            console.error('Error moving todo:', error);
+            console.error('Error moving task:', error);
             this.setState({ draggedTodo: null });
+        }
+    };
+
+    handleDragStartGroup = (group: TodoGroup) => {
+        console.log('handleDragStartGroup called for group:', group.name);
+        setTimeout(() => {
+            this.setState({ draggedGroup: group });
+        }, 0);
+    };
+
+    handleDragEndGroup = () => {
+        console.log('handleDragEndGroup - clearing dragged group');
+        this.setState({
+            draggedGroup: null,
+            dragOverGroupId: null,
+            dragOverGroupPosition: null
+        });
+    };
+
+    handleDragOverGroup = (groupId: string, position: 'before' | 'after') => {
+        if (this.state.draggedGroup?.id === groupId) {
+            return;
+        }
+        this.setState({
+            dragOverGroupId: groupId,
+            dragOverGroupPosition: position
+        });
+    };
+
+    handleDragLeaveGroup = () => {
+        this.setState({
+            dragOverGroupId: null,
+            dragOverGroupPosition: null
+        });
+    };
+
+    handleDropOnGroup = async (targetGroup: TodoGroup, position: 'before' | 'after') => {
+        const { draggedGroup } = this.state;
+        const channelId = this.getChannelId();
+
+        console.log('handleDropOnGroup called:', { draggedGroup, targetGroup, position, channelId });
+
+        if (!draggedGroup || !channelId || draggedGroup.id === targetGroup.id) {
+            this.setState({
+                draggedGroup: null,
+                dragOverGroupId: null,
+                dragOverGroupPosition: null
+            });
+            return;
+        }
+
+        try {
+            const sortedGroups = [...this.state.groups].sort((a, b) => {
+                const aOrder = a.order || a.id;
+                const bOrder = b.order || b.id;
+                return aOrder.localeCompare(bOrder);
+            });
+
+            const targetIndex = sortedGroups.findIndex(g => g.id === targetGroup.id);
+
+            let newOrder: string;
+            if (position === 'before' && targetIndex > 0) {
+                const prevGroup = sortedGroups[targetIndex - 1];
+                const targetOrder = targetGroup.order || targetGroup.id;
+                const prevOrder = prevGroup.order || prevGroup.id;
+                newOrder = prevOrder + '~' + targetOrder.substring(0, 1);
+            } else if (position === 'after' && targetIndex < sortedGroups.length - 1) {
+                const nextGroup = sortedGroups[targetIndex + 1];
+                const targetOrder = targetGroup.order || targetGroup.id;
+                const nextOrder = nextGroup.order || nextGroup.id;
+                newOrder = targetOrder + '~' + nextOrder.substring(0, 1);
+            } else if (position === 'before') {
+                const targetOrder = targetGroup.order || targetGroup.id;
+                newOrder = targetOrder.substring(0, targetOrder.length - 1) + '!';
+            } else {
+                const targetOrder = targetGroup.order || targetGroup.id;
+                newOrder = targetOrder + '~';
+            }
+
+            const response = await fetch(`/plugins/com.mattermost.channel-todo/api/v1/groups?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...draggedGroup,
+                    order: newOrder
+                })
+            });
+
+            if (response.ok) {
+                console.log('Group reordered successfully');
+                this.setState({
+                    draggedGroup: null,
+                    dragOverGroupId: null,
+                    dragOverGroupPosition: null
+                });
+                this.loadTodos();
+            } else {
+                console.error('Failed to reorder group:', response.status);
+            }
+        } catch (error) {
+            console.error('Error reordering group:', error);
+            this.setState({
+                draggedGroup: null,
+                dragOverGroupId: null,
+                dragOverGroupPosition: null
+            });
         }
     };
 
     groupedTodos = (groupId: string | null) => {
         const { filterMyTasks, currentUserId } = this.state;
 
-        let filtered = this.state.todos.filter(todo => {
+        let filtered = this.state.tasks.filter(task => {
             if (groupId === null) {
-                return !todo.group_id;
+                return !task.group_id;
             }
-            return todo.group_id === groupId;
+            return task.group_id === groupId;
         });
 
         if (filterMyTasks && currentUserId) {
-            filtered = filtered.filter(todo => {
-                const assigneeIds = todo.assignee_ids || [];
+            filtered = filtered.filter(task => {
+                const assigneeIds = task.assignee_ids || [];
                 return assigneeIds.includes(currentUserId);
             });
         }
@@ -508,8 +617,16 @@ class TodoSidebar extends React.Component<any> {
         });
     };
 
+    getSortedGroups = () => {
+        return [...this.state.groups].sort((a, b) => {
+            const aOrder = a.order || a.id;
+            const bOrder = b.order || b.id;
+            return aOrder.localeCompare(bOrder);
+        });
+    };
+
     render() {
-        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks, dragOverTodoId, dragOverPosition } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks, dragOverTodoId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -523,6 +640,8 @@ class TodoSidebar extends React.Component<any> {
         const subtleBackground = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
         const borderColor = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
         const subtleText = this.adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
+
+        const sortedGroups = this.getSortedGroups();
 
         return (
             <div
@@ -632,7 +751,7 @@ class TodoSidebar extends React.Component<any> {
                                 value={newTodoText}
                                 onChange={(e) => this.setState({ newTodoText: e.target.value })}
                                 onKeyPress={(e) => e.key === 'Enter' && this.addTodo()}
-                                placeholder="Add new todo..."
+                                placeholder="Add new task..."
                                 style={{
                                     width: '100%',
                                     padding: '10px',
@@ -660,7 +779,7 @@ class TodoSidebar extends React.Component<any> {
                                 }}
                             >
                                 <option value="">No Group</option>
-                                {groups.map(group => (
+                                {sortedGroups.map(group => (
                                     <option key={group.id} value={group.id}>{group.name}</option>
                                 ))}
                             </select>
@@ -678,7 +797,7 @@ class TodoSidebar extends React.Component<any> {
                                     cursor: 'pointer'
                                 }}
                             >
-                                Add Todo
+                                Add Task
                             </button>
                         </div>
                     )}
@@ -722,33 +841,13 @@ class TodoSidebar extends React.Component<any> {
                         </div>
                     )}
 
-                    <TodoGroupSection
-                        title="Ungrouped"
-                        groupId={null}
-                        todos={this.groupedTodos(null)}
-                        channelMembers={channelMembers}
-                        onToggle={this.toggleTodo}
-                        onDelete={this.deleteTodo}
-                        onToggleAssignee={this.toggleAssignee}
-                        onUpdateText={this.updateTodoText}
-                        onDragStart={this.handleDragStart}
-                        onDragEnd={this.handleDragEnd}
-                        onDrop={this.handleDrop}
-                        onDragOverTodo={this.handleDragOverTodo}
-                        onDragLeaveTodo={this.handleDragLeaveTodo}
-                        onDropOnTodo={this.handleDropOnTodo}
-                        isDragging={!!draggedTodo}
-                        dragOverTodoId={dragOverTodoId}
-                        dragOverPosition={dragOverPosition}
-                        theme={theme}
-                    />
-
-                    {groups.map(group => (
+                    {sortedGroups.map(group => (
                         <TodoGroupSection
                             key={group.id}
                             title={group.name}
                             groupId={group.id}
-                            todos={this.groupedTodos(group.id)}
+                            group={group}
+                            tasks={this.groupedTodos(group.id)}
                             channelMembers={channelMembers}
                             onToggle={this.toggleTodo}
                             onDelete={this.deleteTodo}
@@ -764,17 +863,55 @@ class TodoSidebar extends React.Component<any> {
                             isDragging={!!draggedTodo}
                             dragOverTodoId={dragOverTodoId}
                             dragOverPosition={dragOverPosition}
+                            onDragStartGroup={this.handleDragStartGroup}
+                            onDragEndGroup={this.handleDragEndGroup}
+                            onDragOverGroup={this.handleDragOverGroup}
+                            onDragLeaveGroup={this.handleDragLeaveGroup}
+                            onDropOnGroup={this.handleDropOnGroup}
+                            isDraggingGroup={!!draggedGroup}
+                            isDropTargetGroup={dragOverGroupId === group.id}
+                            dropPositionGroup={dragOverGroupId === group.id ? dragOverGroupPosition : null}
                             theme={theme}
                         />
                     ))}
 
-                    {this.state.todos.length === 0 && (
+                    <TodoGroupSection
+                        title="Ungrouped"
+                        groupId={null}
+                        group={null}
+                        tasks={this.groupedTodos(null)}
+                        channelMembers={channelMembers}
+                        onToggle={this.toggleTodo}
+                        onDelete={this.deleteTodo}
+                        onToggleAssignee={this.toggleAssignee}
+                        onUpdateText={this.updateTodoText}
+                        onDragStart={this.handleDragStart}
+                        onDragEnd={this.handleDragEnd}
+                        onDrop={this.handleDrop}
+                        onDragOverTodo={this.handleDragOverTodo}
+                        onDragLeaveTodo={this.handleDragLeaveTodo}
+                        onDropOnTodo={this.handleDropOnTodo}
+                        isDragging={!!draggedTodo}
+                        dragOverTodoId={dragOverTodoId}
+                        dragOverPosition={dragOverPosition}
+                        onDragStartGroup={this.handleDragStartGroup}
+                        onDragEndGroup={this.handleDragEndGroup}
+                        onDragOverGroup={this.handleDragOverGroup}
+                        onDragLeaveGroup={this.handleDragLeaveGroup}
+                        onDropOnGroup={this.handleDropOnGroup}
+                        isDraggingGroup={!!draggedGroup}
+                        isDropTargetGroup={false}
+                        dropPositionGroup={null}
+                        theme={theme}
+                    />
+
+                    {this.state.tasks.length === 0 && (
                         <div style={{
                             textAlign: 'center',
                             padding: '40px 20px',
                             color: subtleText
                         }}>
-                            No todos yet. Add one above to get started!
+                            No tasks yet. Add one above to get started!
                         </div>
                     )}
                 </div>
@@ -783,29 +920,39 @@ class TodoSidebar extends React.Component<any> {
     }
 }
 
-// Todo Group Section Component
+// Task Group Section Component
 const TodoGroupSection: React.FC<{
     title: string;
     groupId: string | null;
-    todos: TodoItem[];
+    group: TodoGroup | null;
+    tasks: TodoItem[];
     channelMembers: any[];
-    onToggle: (todo: TodoItem) => void;
+    onToggle: (task: TodoItem) => void;
     onDelete: (todoId: string) => void;
-    onToggleAssignee: (todo: TodoItem, userId: string) => void;
-    onUpdateText: (todo: TodoItem, newText: string) => void;
+    onToggleAssignee: (task: TodoItem, userId: string) => void;
+    onUpdateText: (task: TodoItem, newText: string) => void;
     onDeleteGroup?: () => void;
-    onDragStart: (todo: TodoItem) => void;
+    onDragStart: (task: TodoItem) => void;
     onDragEnd: () => void;
     onDrop: (groupId: string | null) => void;
     onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
     onDragLeaveTodo: () => void;
-    onDropOnTodo: (todo: TodoItem, position: 'before' | 'after') => void;
+    onDropOnTodo: (task: TodoItem, position: 'before' | 'after') => void;
     isDragging: boolean;
     dragOverTodoId: string | null;
     dragOverPosition: 'before' | 'after' | null;
+    onDragStartGroup: (group: TodoGroup) => void;
+    onDragEndGroup: () => void;
+    onDragOverGroup: (groupId: string, position: 'before' | 'after') => void;
+    onDragLeaveGroup: () => void;
+    onDropOnGroup: (group: TodoGroup, position: 'before' | 'after') => void;
+    isDraggingGroup: boolean;
+    isDropTargetGroup: boolean;
+    dropPositionGroup: 'before' | 'after' | null;
     theme: any;
-}> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, theme }) => {
+}> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onDragStart, onDragEnd, onDrop, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDragging, dragOverTodoId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
+    const [isDraggingThis, setIsDraggingThis] = React.useState(false);
 
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
     const centerChannelColor = theme?.centerChannelColor || '#333333';
@@ -835,6 +982,7 @@ const TodoGroupSection: React.FC<{
     const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
     const subtleText = adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
     const dropZoneBg = adjustOpacity(buttonBg, centerChannelBg, 0.1);
+    const dragHandleColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.4);
 
     React.useEffect(() => {
         if (!isDragging) {
@@ -864,8 +1012,56 @@ const TodoGroupSection: React.FC<{
         onDrop(groupId);
     };
 
+    const handleGroupDragStart = (e: React.DragEvent) => {
+        if (!group) return;
+        setIsDraggingThis(true);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', group.id);
+        onDragStartGroup(group);
+    };
+
+    const handleGroupDragEnd = (e: React.DragEvent) => {
+        setIsDraggingThis(false);
+        onDragEndGroup();
+    };
+
+    const handleGroupDragOver = (e: React.DragEvent) => {
+        if (!group || !isDraggingGroup) {
+            e.stopPropagation();
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const mouseY = e.clientY;
+
+        const position = mouseY < midpoint ? 'before' : 'after';
+        onDragOverGroup(group.id, position);
+    };
+
+    const handleGroupDragLeave = (e: React.DragEvent) => {
+        if (!isDraggingGroup) return;
+        const target = e.currentTarget as HTMLElement;
+        const relatedTarget = e.relatedTarget as HTMLElement;
+
+        if (!relatedTarget || !target.contains(relatedTarget)) {
+            onDragLeaveGroup();
+        }
+    };
+
+    const handleGroupDrop = (e: React.DragEvent) => {
+        if (!group || !isDraggingGroup) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!dropPositionGroup) return;
+        onDropOnGroup(group, dropPositionGroup);
+    };
+
     const isUngrouped = groupId === null;
-    const hasContent = todos.length > 0;
+    const hasContent = tasks.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
 
     const shouldShow = isCreatedGroup || hasContent || (isDragging && !isUngrouped) || (isDragging && isUngrouped);
@@ -876,166 +1072,277 @@ const TodoGroupSection: React.FC<{
 
     if (!shouldShow) return null;
 
-    const showDropZone = isDragging && todos.length === 0;
+    const showDropZone = isDragging && tasks.length === 0;
+    const dropIndicatorColor = buttonBg;
 
     if (!hasContent && !showDropZone) {
         return (
-            <div
-                style={{
-                    marginBottom: '0px',
-                    minHeight: '60px',
-                    borderRadius: '8px',
-                    padding: '8px',
-                    border: '2px solid transparent',
-                    position: 'relative',
-                    transition: 'all 0.2s ease'
-                }}
-            >
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <h4 style={{
-                        margin: 0,
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        color: subtleText,
-                        letterSpacing: '0.5px'
+            <div style={{ position: 'relative' }}>
+                {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '-4px',
+                        left: '0',
+                        right: '0',
+                        height: '3px',
+                        backgroundColor: dropIndicatorColor,
+                        borderRadius: '2px',
+                        zIndex: 10,
+                        boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                    }} />
+                )}
+                <div
+                    draggable={!!group}
+                    onDragStart={handleGroupDragStart}
+                    onDragEnd={handleGroupDragEnd}
+                    onDragOver={handleGroupDragOver}
+                    onDragLeave={handleGroupDragLeave}
+                    onDrop={handleGroupDrop}
+                    style={{
+                        marginBottom: '0px',
+                        minHeight: '60px',
+                        borderRadius: '8px',
+                        padding: '8px',
+                        border: isDraggingThis ? `2px dashed ${buttonBg}` : '2px solid transparent',
+                        opacity: isDraggingThis ? 0.4 : 1,
+                        position: 'relative',
+                        transition: 'all 0.2s ease',
+                        cursor: group ? 'grab' : 'default'
+                    }}
+                >
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
                     }}>
-                        {title}
-                    </h4>
-                    {onDeleteGroup && (
-                        <button
-                            onClick={onDeleteGroup}
-                            style={{
-                                padding: '4px 8px',
-                                fontSize: '11px',
-                                backgroundColor: errorTextColor,
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Delete
-                        </button>
-                    )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {group && (
+                                <div
+                                    style={{
+                                        color: dragHandleColor,
+                                        fontSize: '16px',
+                                        cursor: 'grab',
+                                        userSelect: 'none',
+                                        lineHeight: '1'
+                                    }}
+                                    title="Drag to reorder groups"
+                                >
+                                    ⋮⋮
+                                </div>
+                            )}
+                            <h4 style={{
+                                margin: 0,
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                color: subtleText,
+                                letterSpacing: '0.5px'
+                            }}>
+                                {title}
+                            </h4>
+                        </div>
+                        {onDeleteGroup && (
+                            <button
+                                onClick={onDeleteGroup}
+                                style={{
+                                    padding: '4px',
+                                    fontSize: '20px',
+                                    color: errorTextColor,
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer'
+                                }}
+                                title="Delete group"
+                            >
+                                ×
+                            </button>
+                        )}
+                    </div>
                 </div>
+                {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'after' && (
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        left: '0',
+                        right: '0',
+                        height: '3px',
+                        backgroundColor: dropIndicatorColor,
+                        borderRadius: '2px',
+                        zIndex: 10,
+                        boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                    }} />
+                )}
             </div>
         );
     }
 
     return (
-        <div
-            style={{
-                marginBottom: '0px',
-                minHeight: showDropZone ? '80px' : 'auto',
-                backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
-                border: isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none'),
-                borderRadius: '8px',
-                padding: '8px',
-                transition: 'all 0.2s ease',
-                position: 'relative'
-            }}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-        >
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: todos.length > 0 ? '12px' : '0'
-            }}>
-                <h4 style={{
-                    margin: 0,
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    color: subtleText,
-                    letterSpacing: '0.5px'
-                }}>
-                    {title}
-                </h4>
-                {onDeleteGroup && (
-                    <button
-                        onClick={onDeleteGroup}
-                        style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            backgroundColor: errorTextColor,
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Delete
-                    </button>
-                )}
-            </div>
-
-            {showDropZone && (
+        <div style={{ position: 'relative' }}>
+            {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
                 <div style={{
-                    padding: '24px',
-                    textAlign: 'center',
-                    color: isDragOver ? buttonBg : subtleText,
-                    fontSize: '13px',
-                    fontStyle: 'italic',
-                    fontWeight: isDragOver ? 600 : 400
-                }}>
-                    {isDragOver ? `Drop to move to ${title}` : `Drag items here to move to ${title}`}
-                </div>
+                    position: 'absolute',
+                    top: '-4px',
+                    left: '0',
+                    right: '0',
+                    height: '3px',
+                    backgroundColor: dropIndicatorColor,
+                    borderRadius: '2px',
+                    zIndex: 10,
+                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                }} />
             )}
+            <div
+                draggable={!!group}
+                onDragStart={handleGroupDragStart}
+                onDragEnd={handleGroupDragEnd}
+                onDragOver={(e) => {
+                    handleDragOver(e);
+                    handleGroupDragOver(e);
+                }}
+                onDragLeave={(e) => {
+                    handleDragLeave(e);
+                    handleGroupDragLeave(e);
+                }}
+                onDrop={(e) => {
+                    handleDrop(e);
+                    handleGroupDrop(e);
+                }}
+                style={{
+                    marginBottom: '0px',
+                    minHeight: showDropZone ? '80px' : 'auto',
+                    backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
+                    border: isDraggingThis ? `2px dashed ${buttonBg}` : (isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none')),
+                    borderRadius: '8px',
+                    padding: '8px',
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    opacity: isDraggingThis ? 0.4 : 1,
+                    cursor: group ? 'grab' : 'default'
+                }}
+            >
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: tasks.length > 0 ? '12px' : '0'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {group && (
+                            <div
+                                style={{
+                                    color: dragHandleColor,
+                                    fontSize: '16px',
+                                    cursor: 'grab',
+                                    userSelect: 'none',
+                                    lineHeight: '1'
+                                }}
+                                title="Drag to reorder groups"
+                            >
+                                ⋮⋮
+                            </div>
+                        )}
+                        <h4 style={{
+                            margin: 0,
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            color: subtleText,
+                            letterSpacing: '0.5px'
+                        }}>
+                            {title}
+                        </h4>
+                    </div>
+                    {onDeleteGroup && (
+                        <button
+                            onClick={onDeleteGroup}
+                            style={{
+                                padding: '4px',
+                                fontSize: '20px',
+                                color: errorTextColor,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}
+                            title="Delete group"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
 
-            {todos.map(todo => (
-                <TodoItemComponent
-                    key={todo.id}
-                    todo={todo}
-                    channelMembers={channelMembers}
-                    onToggle={onToggle}
-                    onDelete={onDelete}
-                    onToggleAssignee={onToggleAssignee}
-                    onUpdateText={onUpdateText}
-                    onDragStart={onDragStart}
-                    onDragEnd={onDragEnd}
-                    onDragOverTodo={onDragOverTodo}
-                    onDragLeaveTodo={onDragLeaveTodo}
-                    onDropOnTodo={onDropOnTodo}
-                    isDraggingItem={isDragging}
-                    isDropTarget={dragOverTodoId === todo.id}
-                    dropPosition={dragOverTodoId === todo.id ? dragOverPosition : null}
-                    theme={theme}
-                />
-            ))}
+                {showDropZone && (
+                    <div style={{
+                        padding: '24px',
+                        textAlign: 'center',
+                        color: isDragOver ? buttonBg : subtleText,
+                        fontSize: '13px',
+                        fontStyle: 'italic',
+                        fontWeight: isDragOver ? 600 : 400
+                    }}>
+                        {isDragOver ? `Drop to move to ${title}` : `Drag items here to move to ${title}`}
+                    </div>
+                )}
+
+                {tasks.map(task => (
+                    <TodoItemComponent
+                        key={task.id}
+                        task={task}
+                        channelMembers={channelMembers}
+                        onToggle={onToggle}
+                        onDelete={onDelete}
+                        onToggleAssignee={onToggleAssignee}
+                        onUpdateText={onUpdateText}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        onDragOverTodo={onDragOverTodo}
+                        onDragLeaveTodo={onDragLeaveTodo}
+                        onDropOnTodo={onDropOnTodo}
+                        isDraggingItem={isDragging}
+                        isDropTarget={dragOverTodoId === task.id}
+                        dropPosition={dragOverTodoId === task.id ? dragOverPosition : null}
+                        theme={theme}
+                    />
+                ))}
+            </div>
+            {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'after' && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: '0',
+                    right: '0',
+                    height: '3px',
+                    backgroundColor: dropIndicatorColor,
+                    borderRadius: '2px',
+                    zIndex: 10,
+                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
+                }} />
+            )}
         </div>
     );
 };
 
-// Individual Todo Item Component
+// Individual Task Item Component
 const TodoItemComponent: React.FC<{
-    todo: TodoItem;
+    task: TodoItem;
     channelMembers: any[];
-    onToggle: (todo: TodoItem) => void;
+    onToggle: (task: TodoItem) => void;
     onDelete: (todoId: string) => void;
-    onToggleAssignee: (todo: TodoItem, userId: string) => void;
-    onUpdateText: (todo: TodoItem, newText: string) => void;
-    onDragStart: (todo: TodoItem) => void;
+    onToggleAssignee: (task: TodoItem, userId: string) => void;
+    onUpdateText: (task: TodoItem, newText: string) => void;
+    onDragStart: (task: TodoItem) => void;
     onDragEnd: () => void;
     onDragOverTodo: (todoId: string, position: 'before' | 'after') => void;
     onDragLeaveTodo: () => void;
-    onDropOnTodo: (todo: TodoItem, position: 'before' | 'after') => void;
+    onDropOnTodo: (task: TodoItem, position: 'before' | 'after') => void;
     isDraggingItem: boolean;
     isDropTarget: boolean;
     dropPosition: 'before' | 'after' | null;
     theme: any;
-}> = ({ todo, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDraggingItem, isDropTarget, dropPosition, theme }) => {
+}> = ({ task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTodo, onDragLeaveTodo, onDropOnTodo, isDraggingItem, isDropTarget, dropPosition, theme }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
     const [isEditing, setIsEditing] = React.useState(false);
-    const [editText, setEditText] = React.useState(todo.text);
+    const [editText, setEditText] = React.useState(task.text);
     const popupRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -1094,14 +1401,16 @@ const TodoItemComponent: React.FC<{
     }, [isEditing]);
 
     const handleDragStart = (e: React.DragEvent) => {
+        e.stopPropagation(); // Prevent group drag from triggering
         setIsDragging(true);
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', todo.id);
+        e.dataTransfer.setData('text/plain', task.id);
         e.dataTransfer.dropEffect = 'move';
-        onDragStart(todo);
+        onDragStart(task);
     };
 
     const handleDragEnd = (e: React.DragEvent) => {
+        e.stopPropagation(); // Prevent group drag end from triggering
         setIsDragging(false);
         onDragEnd();
     };
@@ -1124,7 +1433,7 @@ const TodoItemComponent: React.FC<{
         const mouseY = e.clientY;
 
         const position = mouseY < midpoint ? 'before' : 'after';
-        onDragOverTodo(todo.id, position);
+        onDragOverTodo(task.id, position);
     };
 
     const handleItemDragLeave = (e: React.DragEvent) => {
@@ -1142,25 +1451,25 @@ const TodoItemComponent: React.FC<{
 
         if (!dropPosition) return;
 
-        onDropOnTodo(todo, dropPosition);
+        onDropOnTodo(task, dropPosition);
     };
 
     const handleTextClick = () => {
-        if (!todo.completed) {
+        if (!task.completed) {
             setIsEditing(true);
-            setEditText(todo.text);
+            setEditText(task.text);
         }
     };
 
     const handleSaveEdit = () => {
-        if (editText.trim() && editText !== todo.text) {
-            onUpdateText(todo, editText.trim());
+        if (editText.trim() && editText !== task.text) {
+            onUpdateText(task, editText.trim());
         }
         setIsEditing(false);
     };
 
     const handleCancelEdit = () => {
-        setEditText(todo.text);
+        setEditText(task.text);
         setIsEditing(false);
     };
 
@@ -1172,7 +1481,7 @@ const TodoItemComponent: React.FC<{
         }
     };
 
-    const assigneeIds = todo.assignee_ids || [];
+    const assigneeIds = task.assignee_ids || [];
     const assignedMembers = channelMembers.filter(m => assigneeIds.includes(m.id));
 
     const dropIndicatorColor = buttonBg;
@@ -1202,8 +1511,8 @@ const TodoItemComponent: React.FC<{
                 onDragLeave={handleItemDragLeave}
                 onDrop={handleItemDrop}
                 style={{
-                    padding: '12px',
-                    backgroundColor: todo.completed ? completedBg : centerChannelBg,
+                    padding: '4px 8px',
+                    backgroundColor: task.completed ? completedBg : centerChannelBg,
                     borderRadius: '4px',
                     marginBottom: '8px',
                     border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
@@ -1231,8 +1540,8 @@ const TodoItemComponent: React.FC<{
 
                     <input
                         type="checkbox"
-                        checked={todo.completed}
-                        onChange={() => onToggle(todo)}
+                        checked={task.completed}
+                        onChange={() => onToggle(task)}
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             marginRight: '10px',
@@ -1267,27 +1576,27 @@ const TodoItemComponent: React.FC<{
                             <div
                                 onClick={handleTextClick}
                                 style={{
-                                    textDecoration: todo.completed ? 'line-through' : 'none',
-                                    color: todo.completed ? completedText : centerChannelColor,
+                                    textDecoration: task.completed ? 'line-through' : 'none',
+                                    color: task.completed ? completedText : centerChannelColor,
                                     wordBreak: 'break-word',
                                     fontSize: '14px',
                                     lineHeight: '1.5',
-                                    cursor: todo.completed ? 'default' : 'text',
+                                    cursor: task.completed ? 'default' : 'text',
                                     padding: '4px 8px',
                                     borderRadius: '3px',
                                     transition: 'background-color 0.2s'
                                 }}
                                 onMouseEnter={(e) => {
-                                    if (!todo.completed) {
+                                    if (!task.completed) {
                                         e.currentTarget.style.backgroundColor = hoverBg;
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     e.currentTarget.style.backgroundColor = 'transparent';
                                 }}
-                                title={todo.completed ? '' : 'Click to edit'}
+                                title={task.completed ? '' : 'Click to edit'}
                             >
-                                {todo.text}
+                                {task.text}
                             </div>
                         )}
                     </div>
@@ -1389,7 +1698,7 @@ const TodoItemComponent: React.FC<{
                                     return (
                                         <div
                                             key={member.id}
-                                            onClick={() => onToggleAssignee(todo, member.id)}
+                                            onClick={() => onToggleAssignee(task, member.id)}
                                             style={{
                                                 padding: '8px 12px',
                                                 display: 'flex',
@@ -1435,19 +1744,19 @@ const TodoItemComponent: React.FC<{
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            onDelete(todo.id);
+                            onDelete(task.id);
                         }}
                         style={{
-                            padding: '4px 8px',
-                            fontSize: '16px',
+                            padding: '4px 2px',
+                            fontSize: '20px',
                             color: errorTextColor,
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
                             flexShrink: 0,
-                            marginLeft: '8px'
+                            margin: '0 2px'
                         }}
-                        title="Delete todo"
+                        title="Delete task"
                     >
                         ×
                     </button>

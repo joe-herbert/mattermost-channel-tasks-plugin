@@ -27,8 +27,9 @@ type TodoItem struct {
 }
 
 type TodoGroup struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Order string `json:"order,omitempty"`
 }
 
 type ChannelTodoList struct {
@@ -82,6 +83,8 @@ func (p *Plugin) handleGroups(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		p.createGroup(w, r, channelID)
+	case http.MethodPut:
+		p.updateGroup(w, r, channelID)
 	case http.MethodDelete:
 		p.deleteGroup(w, r, channelID)
 	default:
@@ -172,6 +175,27 @@ func (p *Plugin) createGroup(w http.ResponseWriter, r *http.Request, channelID s
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(group)
+}
+
+func (p *Plugin) updateGroup(w http.ResponseWriter, r *http.Request, channelID string) {
+	var updated TodoGroup
+	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	list := p.getChannelTodoList(channelID)
+	for i, group := range list.Groups {
+		if group.ID == updated.ID {
+			list.Groups[i] = updated
+			p.saveChannelTodoList(channelID, list)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(updated)
+			return
+		}
+	}
+
+	http.Error(w, "Group not found", http.StatusNotFound)
 }
 
 func (p *Plugin) deleteGroup(w http.ResponseWriter, r *http.Request, channelID string) {
