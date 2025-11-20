@@ -5,7 +5,7 @@ A Mattermost plugin that adds a comprehensive task list feature to each channel 
 ## Features
 
 - **Channel-Specific Task Lists**: Each channel has its own independent task list with dynamic titles
-- **Header Button**: Quick access button in the channel header with a checkmark icon
+- **App Bar Button**: Quick access button in the App Bar with a checkmark icon
 - **Right-Hand Sidebar**: Full-featured task list interface that opens in the right sidebar
 - **Task Management**: Add, complete, edit, and delete task items with inline editing
 - **Grouping**: Organize tasks into custom groups with drag-and-drop reordering
@@ -54,7 +54,7 @@ mattermost-channel-tasks-plugin/
 
 ### Accessing the Task List
 
-1. In any channel, look for the checkmark (✓) icon in the channel header
+1. In any channel, look for the checkmark (✓) icon in the App Bar
 2. Click the icon to open the task sidebar on the right
 3. Alternatively, click the "Task List" option in the channel header menu
 
