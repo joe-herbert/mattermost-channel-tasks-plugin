@@ -74,6 +74,7 @@ class TodoSidebar extends React.Component<any> {
         selectedGroup: '',
         channelMembers: [] as any[],
         showGroupForm: false,
+        showTodoForm: false,
         draggedTodo: null as TodoItem | null,
         filterMyTasks: false,
         currentUserId: '',
@@ -272,7 +273,7 @@ class TodoSidebar extends React.Component<any> {
             });
             console.log('Add group response:', response.status, response.ok);
             if (response.ok) {
-                this.setState({ newGroupName: '', showGroupForm: false });
+                this.setState({ newGroupName: '' });
                 this.loadTodos();
             } else {
                 console.error('Failed to add group:', await response.text());
@@ -373,7 +374,7 @@ class TodoSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, draggedTodo, filterMyTasks } = this.state;
+        const { newTodoText, newGroupName, selectedGroup, groups, channelMembers, showGroupForm, showTodoForm, draggedTodo, filterMyTasks } = this.state;
         const channelName = this.props.channelDisplayName || 'Channel';
 
         return (
@@ -420,107 +421,140 @@ class TodoSidebar extends React.Component<any> {
                         </label>
                     </div>
 
-                    <div style={{ marginBottom: '20px' }}>
-                        <input
-                            type="text"
-                            value={newTodoText}
-                            onChange={(e) => this.setState({ newTodoText: e.target.value })}
-                            onKeyPress={(e) => e.key === 'Enter' && this.addTodo()}
-                            placeholder="Add new todo..."
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                marginBottom: '8px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                fontSize: '14px'
-                            }}
-                        />
-                        <select
-                            value={selectedGroup}
-                            onChange={(e) => this.setState({ selectedGroup: e.target.value })}
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                marginBottom: '8px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                fontSize: '14px'
-                            }}
-                        >
-                            <option value="">No Group</option>
-                            {groups.map(group => (
-                                <option key={group.id} value={group.id}>{group.name}</option>
-                            ))}
-                        </select>
+                    {/* Add Task/Group Buttons */}
+                    <div style={{
+                        marginBottom: '20px',
+                        display: 'flex',
+                        gap: '8px'
+                    }}>
                         <button
-                            onClick={this.addTodo}
+                            onClick={() => this.setState({ showTodoForm: !showTodoForm, showGroupForm: false })}
                             style={{
-                                width: '100%',
-                                padding: '10px',
-                                backgroundColor: '#1c58d9',
-                                color: 'white',
+                                flex: 1,
+                                padding: '8px 12px',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                backgroundColor: showTodoForm ? '#1c58d9' : '#f5f5f5',
+                                color: showTodoForm ? 'white' : '#333',
                                 border: 'none',
                                 borderRadius: '4px',
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
                             }}
                         >
-                            Add Todo
+                            {showTodoForm ? '− Task' : '+ Task'}
                         </button>
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
                         <button
-                            onClick={() => this.setState({ showGroupForm: !showGroupForm })}
+                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTodoForm: false })}
                             style={{
-                                padding: '6px 12px',
-                                fontSize: '13px',
-                                backgroundColor: '#f5f5f5',
-                                border: '1px solid #ddd',
+                                flex: 1,
+                                padding: '8px 12px',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                backgroundColor: showGroupForm ? '#28a745' : '#f5f5f5',
+                                color: showGroupForm ? 'white' : '#333',
+                                border: 'none',
                                 borderRadius: '4px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
                             }}
                         >
-                            {showGroupForm ? 'Cancel' : '+ Add Group'}
+                            {showGroupForm ? '− Group' : '+ Group'}
                         </button>
-
-                        {showGroupForm && (
-                            <div style={{ marginTop: '10px' }}>
-                                <input
-                                    type="text"
-                                    value={newGroupName}
-                                    onChange={(e) => this.setState({ newGroupName: e.target.value })}
-                                    onKeyPress={(e) => e.key === 'Enter' && this.addGroup()}
-                                    placeholder="Group name..."
-                                    style={{
-                                        width: '100%',
-                                        padding: '8px',
-                                        marginBottom: '8px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        fontSize: '13px'
-                                    }}
-                                />
-                                <button
-                                    onClick={this.addGroup}
-                                    style={{
-                                        width: '100%',
-                                        padding: '8px',
-                                        backgroundColor: '#28a745',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        fontSize: '13px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Create Group
-                                </button>
-                            </div>
-                        )}
                     </div>
+
+                    {/* Add Todo Form */}
+                    {showTodoForm && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <input
+                                type="text"
+                                value={newTodoText}
+                                onChange={(e) => this.setState({ newTodoText: e.target.value })}
+                                onKeyPress={(e) => e.key === 'Enter' && this.addTodo()}
+                                placeholder="Add new todo..."
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    marginBottom: '8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '14px'
+                                }}
+                                autoFocus
+                            />
+                            <select
+                                value={selectedGroup}
+                                onChange={(e) => this.setState({ selectedGroup: e.target.value })}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    marginBottom: '8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '14px'
+                                }}
+                            >
+                                <option value="">No Group</option>
+                                {groups.map(group => (
+                                    <option key={group.id} value={group.id}>{group.name}</option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={this.addTodo}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    backgroundColor: '#1c58d9',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '14px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Add Todo
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Group Management */}
+                    {showGroupForm && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => this.setState({ newGroupName: e.target.value })}
+                                onKeyPress={(e) => e.key === 'Enter' && this.addGroup()}
+                                placeholder="Group name..."
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    marginBottom: '8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '14px'
+                                }}
+                                autoFocus
+                            />
+                            <button
+                                onClick={this.addGroup}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    backgroundColor: '#28a745',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '14px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Create Group
+                            </button>
+                        </div>
+                    )}
 
                     <TodoGroupSection
                         title="Ungrouped"
