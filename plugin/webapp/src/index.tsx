@@ -253,10 +253,15 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
     };
 
     handleDragStart = (todo: TodoItem) => {
-        this.setState({ draggedTodo: todo });
+        console.log('Parent: handleDragStart called for todo:', todo.text);
+        // Use setTimeout to defer the state update until after the drag has been initiated
+        setTimeout(() => {
+            this.setState({ draggedTodo: todo });
+        }, 0);
     };
 
     handleDragEnd = () => {
+        console.log('handleDragEnd - clearing dragged todo');
         this.setState({ draggedTodo: null });
     };
 
@@ -369,7 +374,13 @@ class TodoModal extends React.Component<{ channel: any; onClose: () => void }> {
                 </div>
 
                 {/* Content */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <div
+                    style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
+                    onDragOver={(e) => {
+                        // Make the scroll container a valid drop target
+                        e.preventDefault();
+                    }}
+                >
                     {/* Add Todo Form */}
                     <div style={{ marginBottom: '20px' }}>
                         <input
@@ -539,19 +550,27 @@ const TodoGroupSection: React.FC<{
 }> = ({ title, groupId, todos, channelMembers, onToggle, onDelete, onUpdateAssignee, onDeleteGroup, onDragStart, onDragEnd, onDrop, isDragging }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
 
+    // Reset drag over state when dragging stops
+    React.useEffect(() => {
+        if (!isDragging) {
+            setIsDragOver(false);
+        }
+    }, [isDragging]);
+
     const handleDragOver = (e: React.DragEvent) => {
+        console.log('Drag over group:', title);
         e.preventDefault();
-        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
         setIsDragOver(true);
     };
 
     const handleDragLeave = (e: React.DragEvent) => {
-        // Only trigger if we're actually leaving the drop zone
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const x = e.clientX;
-        const y = e.clientY;
+        // Check if we're leaving the drop zone container itself, not just entering a child
+        const target = e.currentTarget as HTMLElement;
+        const relatedTarget = e.relatedTarget as HTMLElement;
 
-        if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+        // If relatedTarget is null or not a descendant of the drop zone, we've truly left
+        if (!relatedTarget || !target.contains(relatedTarget)) {
             setIsDragOver(false);
         }
     };
@@ -577,6 +596,56 @@ const TodoGroupSection: React.FC<{
 
     // Show empty state message when dragging and section is empty
     const showDropZone = isDragging && todos.length === 0;
+
+    // If it's an empty group that's not showing a drop zone, render minimal markup
+    if (!hasContent && !showDropZone) {
+        return (
+            <div
+                style={{
+                    marginBottom: '20px',
+                    minHeight: '60px',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    border: '2px solid transparent',
+                    position: 'relative',
+                    transition: 'all 0.2s ease'
+                }}
+            >
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <h4 style={{
+                        margin: 0,
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        color: '#666',
+                        letterSpacing: '0.5px'
+                    }}>
+                        {title}
+                    </h4>
+                    {onDeleteGroup && (
+                        <button
+                            onClick={onDeleteGroup}
+                            style={{
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Delete
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -670,19 +739,29 @@ const TodoItemComponent: React.FC<{
     const [isDragging, setIsDragging] = React.useState(false);
 
     const handleDragStart = (e: React.DragEvent) => {
-        console.log('Drag started for todo:', todo.text);
-        e.stopPropagation();
+        console.log('=== DRAG START ===');
+        console.log('Todo:', todo.text, 'Group ID:', todo.group_id);
+
         setIsDragging(true);
-        onDragStart(todo);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', todo.id);
+        e.dataTransfer.dropEffect = 'move';
+
+        // Call parent handler after setting up the dataTransfer
+        onDragStart(todo);
     };
 
     const handleDragEnd = (e: React.DragEvent) => {
-        console.log('Drag ended');
-        e.stopPropagation();
+        console.log('=== DRAG END ===');
+        console.log('Todo:', todo.text);
+        console.log('Drop effect:', e.dataTransfer.dropEffect);
+
         setIsDragging(false);
         onDragEnd();
+    };
+
+    const handleDrag = (e: React.DragEvent) => {
+        // Continuously fires during drag - prevent any cancellation
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -700,8 +779,14 @@ const TodoItemComponent: React.FC<{
         <div
             draggable="true"
             onDragStart={handleDragStart}
+            onDrag={handleDrag}
             onDragEnd={handleDragEnd}
             onMouseDown={handleMouseDown}
+            onDragOver={(e) => {
+                // Prevent the item from being a drop target for itself
+                e.preventDefault();
+                e.stopPropagation();
+            }}
             style={{
                 padding: '12px',
                 backgroundColor: todo.completed ? '#f8f9fa' : '#fff',
