@@ -128,7 +128,9 @@ class TaskSidebar extends React.Component<any> {
         dragOverGroupPosition: null as 'before' | 'after' | null,
         filterMyTasks: false,
         filterCompletion: 'all' as 'all' | 'complete' | 'incomplete',
-        filterDeadline: 'all' as 'all' | 'today' | 'one-week' | 'overdue',
+        filterDeadline: 'all' as 'all' | 'today' | 'one-week' | 'overdue' | 'custom',
+        filterDeadlineCustomFrom: '',
+        filterDeadlineCustomTo: '',
         currentUserId: '',
         deleteGroupWarningShown: false,
         groupToDelete: null as { id: string, name: string, taskCount: number } | null,
@@ -778,17 +780,30 @@ class TaskSidebar extends React.Component<any> {
                 if (!task.deadline) return false;
                 const taskDate = new Date(task.deadline);
                 const now = new Date();
-                now.setHours(0, 0, 0);
+                now.setHours(0, 0, 0, 0);
                 const twoWeeksDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-                return taskDate <= twoWeeksDate && taskDate >= now;
+                return taskDate.getTime() <= twoWeeksDate.getTime() && taskDate.getTime() >= now.getTime();
             });
         } else if (filterDeadline === 'overdue') {
             filtered = filtered.filter(task => {
                 if (!task.deadline) return false;
                 const taskDate = new Date(task.deadline);
                 const now = new Date();
-                now.setHours(0, 0, 0);
-                return taskDate < now;
+                now.setHours(0, 0, 0, 0);
+                return taskDate.getTime() < now.getTime();
+            });
+        } else if (filterDeadline === 'custom') {
+            filtered = filtered.filter(task => {
+                if (!task.deadline && !this.state.filterDeadlineCustomFrom && !this.state.filterDeadlineCustomTo) return true;
+                if (!task.deadline) return false;
+                if (task.deadline && !this.state.filterDeadlineCustomFrom && !this.state.filterDeadlineCustomTo) return false;
+
+                const taskDate = new Date(task.deadline);
+                const from = new Date(this.state.filterDeadlineCustomFrom || "0000-01-01");
+                from.setHours(0, 0, 0, 0);
+                const to = new Date(this.state.filterDeadlineCustomTo || "3000-01-01");
+                to.setHours(23, 59, 59, 999);
+                return taskDate.getTime() >= from.getTime() && taskDate.getTime() <= to.getTime();
             });
         }
 
@@ -808,7 +823,7 @@ class TaskSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, filterDeadline, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
+        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, filterDeadline, filterDeadlineCustomFrom, filterDeadlineCustomTo, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -1065,6 +1080,7 @@ class TaskSidebar extends React.Component<any> {
                                         color: filterDeadline === 'one-week' ? buttonColor : centerChannelColor,
                                         border: 'none',
                                         borderRight: `1px solid ${borderColor}`,
+                                        borderBottom: `1px solid ${borderColor}`,
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         userSelect: 'none'
@@ -1082,14 +1098,72 @@ class TaskSidebar extends React.Component<any> {
                                         backgroundColor: filterDeadline === 'overdue' ? buttonBg : subtleBackground,
                                         color: filterDeadline === 'overdue' ? buttonColor : centerChannelColor,
                                         border: 'none',
+                                        borderBottom: `1px solid ${borderColor}`,
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         userSelect: 'none'
                                     }}
                                 >
-                                    Overdue
+                                    Past Due
+                                </button>
+                                <button
+                                    onClick={() => this.setState({ filterDeadline: 'custom' }, () => this.saveFilterSettings())}
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        backgroundColor: filterDeadline === 'custom' ? buttonBg : subtleBackground,
+                                        color: filterDeadline === 'custom' ? buttonColor : centerChannelColor,
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        userSelect: 'none',
+                                        gridColumn: '1 / span 2'
+                                    }}
+                                >
+                                    Custom Deadline Range
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {filterDeadline === 'custom' && (
+                        <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                            <label style={{ flex: '200px 1 0', fontWeight: 'normal' }}>
+                                <span style={{ marginBottom: '4px', display: "block" }}>From:</span>
+                                <input type='date'
+                                       value={filterDeadlineCustomFrom}
+                                       onChange={(e) => this.setState({ filterDeadlineCustomFrom: e.target.value })}
+                                       placeholder="From"
+                                       style={{
+                                           width: '100%',
+                                           padding: '10px',
+                                           marginBottom: '8px',
+                                           border: `1px solid ${borderColor}`,
+                                           borderRadius: '4px',
+                                           fontSize: '14px',
+                                           backgroundColor: centerChannelBg,
+                                           color: centerChannelColor
+                                       }}></input>
+                            </label>
+                            <label style={{ flex: '200px 1 0', fontWeight: 'normal' }}>
+                                <span style={{ marginBottom: '4px', display: "block" }}>To:</span>
+                                <input type='date'
+                                       value={filterDeadlineCustomTo}
+                                       onChange={(e) => this.setState({ filterDeadlineCustomTo: e.target.value })}
+                                       placeholder="To"
+                                       style={{
+                                           width: '100%',
+                                           padding: '10px',
+                                           marginBottom: '8px',
+                                           border: `1px solid ${borderColor}`,
+                                           borderRadius: '4px',
+                                           fontSize: '14px',
+                                           backgroundColor: centerChannelBg,
+                                           color: centerChannelColor
+                                       }}></input>
+                            </label>
                         </div>
                     )}
 
