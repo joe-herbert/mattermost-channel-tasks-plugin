@@ -17,13 +17,14 @@ type Plugin struct {
 }
 
 type TaskItem struct {
-	ID          string    `json:"id"`
-	Text        string    `json:"text"`
-	Completed   bool      `json:"completed"`
-	AssigneeIDs []string  `json:"assignee_ids,omitempty"`
-	GroupID     string    `json:"group_id,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	CompletedAt time.Time `json:"completed_at,omitempty"`
+	ID          string     `json:"id"`
+	Text        string     `json:"text"`
+	Completed   bool       `json:"completed"`
+	AssigneeIDs []string   `json:"assignee_ids,omitempty"`
+	GroupID     string     `json:"group_id,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CompletedAt time.Time  `json:"completed_at,omitempty"`
+	Deadline    *time.Time `json:"deadline,omitempty"`
 }
 
 type TaskGroup struct {

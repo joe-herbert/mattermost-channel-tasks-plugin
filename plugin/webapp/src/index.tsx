@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 // Types
 interface TaskItem {
@@ -9,6 +9,7 @@ interface TaskItem {
     group_id?: string;
     created_at: string;
     completed_at?: string;
+    deadline?: string;
 }
 
 interface TaskGroup {
@@ -114,6 +115,7 @@ class TaskSidebar extends React.Component<any> {
         newTaskText: '',
         newGroupName: '',
         selectedGroup: '',
+        newTaskDeadline: '',
         channelMembers: [] as any[],
         showGroupForm: false,
         showTaskForm: false,
@@ -262,26 +264,35 @@ class TaskSidebar extends React.Component<any> {
     };
 
     addTask = async () => {
-        const { newTaskText, selectedGroup } = this.state;
+        const { newTaskText, selectedGroup, newTaskDeadline } = this.state;
         const channelId = this.getChannelId();
         console.log('Adding task:', newTaskText, 'for channel:', channelId);
         if (!newTaskText.trim() || !channelId) return;
 
         try {
             console.log('Sending POST request to add task');
+            const taskData: any = {
+                text: newTaskText,
+                completed: false,
+                group_id: selectedGroup || undefined
+            };
+
+            if (newTaskDeadline) {
+                taskData.deadline = new Date(newTaskDeadline).toISOString();
+            }
+
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: newTaskText,
-                    completed: false,
-                    group_id: selectedGroup || undefined
-                })
+                body: JSON.stringify(taskData)
             });
 
             console.log('Add task response:', response.status, response.ok);
             if (response.ok) {
-                this.setState({ newTaskText: '' });
+                this.setState({
+                    newTaskText: '',
+                    newTaskDeadline: ''
+                });
                 this.loadTasks();
             } else {
                 console.error('Failed to add task:', await response.text());
@@ -768,7 +779,7 @@ class TaskSidebar extends React.Component<any> {
     };
 
     render() {
-        const { newTaskText, newGroupName, selectedGroup, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
+        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -971,43 +982,92 @@ class TaskSidebar extends React.Component<any> {
 
                     {showTaskForm && (
                         <div style={{ marginBottom: '20px' }}>
-                            <input
-                                type="text"
-                                value={newTaskText}
-                                onChange={(e) => this.setState({ newTaskText: e.target.value })}
-                                onKeyPress={(e) => e.key === 'Enter' && this.addTask()}
-                                placeholder="Add new task..."
-                                style={{
-                                    width: '100%',
-                                    padding: '10px',
-                                    marginBottom: '8px',
-                                    border: `1px solid ${borderColor}`,
-                                    borderRadius: '4px',
-                                    fontSize: '14px',
-                                    backgroundColor: centerChannelBg,
-                                    color: centerChannelColor
-                                }}
-                                autoFocus
-                            />
-                            <select
-                                value={selectedGroup}
-                                onChange={(e) => this.setState({ selectedGroup: e.target.value })}
-                                style={{
-                                    width: '100%',
-                                    padding: '10px',
-                                    marginBottom: '8px',
-                                    border: `1px solid ${borderColor}`,
-                                    borderRadius: '4px',
-                                    fontSize: '14px',
-                                    backgroundColor: centerChannelBg,
-                                    color: centerChannelColor
-                                }}
-                            >
-                                <option value="">No Group</option>
-                                {sortedGroups.map(group => (
-                                    <option key={group.id} value={group.id}>{group.name}</option>
-                                ))}
-                            </select>
+                            <label style={{ width: '100%', fontWeight: "normal" }}>
+                                <span style={{ marginBottom: '4px', display: "block" }}>Task</span>
+                                <input
+                                    type="text"
+                                    value={newTaskText}
+                                    onChange={(e) => this.setState({ newTaskText: e.target.value })}
+                                    onKeyPress={(e) => e.key === 'Enter' && this.addTask()}
+                                    placeholder="Add new task..."
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        marginBottom: '8px',
+                                        border: `1px solid ${borderColor}`,
+                                        borderRadius: '4px',
+                                        fontSize: '14px',
+                                        backgroundColor: centerChannelBg,
+                                        color: centerChannelColor
+                                    }}
+                                    autoFocus
+                                />
+                            </label>
+                            <label style={{ width: '100%', fontWeight: "normal" }}>
+                                <span style={{ marginBottom: '4px', display: "block" }}>Group</span>
+                                <select
+                                    value={selectedGroup}
+                                    onChange={(e) => this.setState({ selectedGroup: e.target.value })}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        marginBottom: '8px',
+                                        border: `1px solid ${borderColor}`,
+                                        borderRadius: '4px',
+                                        fontSize: '14px',
+                                        backgroundColor: centerChannelBg,
+                                        color: centerChannelColor
+                                    }}
+                                >
+                                    <option value="">No Group</option>
+                                    {sortedGroups.map(group => (
+                                        <option key={group.id} value={group.id}>{group.name}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label style={{ width: '100%', fontWeight: "normal" }}>
+                                <span style={{ marginBottom: '4px', display: "block" }}>Deadline</span>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type="date"
+                                        value={newTaskDeadline}
+                                        onChange={(e) => this.setState({ newTaskDeadline: e.target.value })}
+                                        placeholder="Deadline (optional)"
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px',
+                                            paddingRight: newTaskDeadline ? '40px' : '10px',
+                                            marginBottom: '8px',
+                                            border: `1px solid ${borderColor}`,
+                                            borderRadius: '4px',
+                                            fontSize: '14px',
+                                            backgroundColor: centerChannelBg,
+                                            color: centerChannelColor
+                                        }}
+                                    />
+                                    {newTaskDeadline && (
+                                        <button
+                                            onClick={() => this.setState({ newTaskDeadline: '' })}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '8px',
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                padding: '4px 8px',
+                                                fontSize: '14px',
+                                                color: subtleText,
+                                                backgroundColor: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                marginBottom: '8px'
+                                            }}
+                                            title="Clear deadline"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            </label>
                             <button
                                 onClick={this.addTask}
                                 style={{
@@ -1821,8 +1881,16 @@ const TaskItemComponent: React.FC<{
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
     const [isEditing, setIsEditing] = React.useState(false);
     const [editText, setEditText] = React.useState(task.text);
+    const [isEditingDeadline, setIsEditingDeadline] = React.useState(false);
+    const [editDeadline, setEditDeadline] = React.useState(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
     const popupRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const deadlineInputRef = React.useRef<HTMLInputElement>(null);
+
+    // Update editDeadline when task.deadline changes
+    React.useEffect(() => {
+        setEditDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
+    }, [task.deadline]);
 
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
     const centerChannelColor = theme?.centerChannelColor || '#333333';
@@ -1877,6 +1945,12 @@ const TaskItemComponent: React.FC<{
             inputRef.current.select();
         }
     }, [isEditing]);
+
+    React.useEffect(() => {
+        if (isEditingDeadline && deadlineInputRef.current) {
+            deadlineInputRef.current.focus();
+        }
+    }, [isEditingDeadline]);
 
     const handleDragStart = (e: React.DragEvent) => {
         e.stopPropagation(); // Prevent group drag from triggering
@@ -1959,10 +2033,132 @@ const TaskItemComponent: React.FC<{
         }
     };
 
+    const handleDeadlineClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // If there's no current deadline, set default to today
+        if (!editDeadline) {
+            const today = new Date().toISOString().split('T')[0];
+            setEditDeadline(today);
+        }
+        setIsEditingDeadline(true);
+    };
+
+    const handleSaveDeadlineEdit = async () => {
+        // Check if deadline actually changed
+        const currentDeadline = task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '';
+        if (editDeadline === currentDeadline) {
+            setIsEditingDeadline(false);
+            return;
+        }
+
+        const channelId = (window as any).store?.getState()?.entities?.channels?.currentChannelId;
+        if (!channelId) {
+            setIsEditingDeadline(false);
+            return;
+        }
+
+        try {
+            const updatedTask = {
+                ...task,
+                deadline: editDeadline ? new Date(editDeadline).toISOString() : undefined
+            };
+
+            const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedTask)
+            });
+
+            if (response.ok) {
+                // Update the task prop immediately (optimistic update)
+                task.deadline = editDeadline ? new Date(editDeadline).toISOString() : undefined;
+                setIsEditingDeadline(false);
+                // Trigger parent reload
+                onUpdateText(task, task.text);
+            } else {
+                setIsEditingDeadline(false);
+            }
+        } catch (error) {
+            console.error('Error updating deadline:', error);
+            setIsEditingDeadline(false);
+        }
+    };
+
+    const handleCancelDeadlineEdit = () => {
+        setEditDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
+        setIsEditingDeadline(false);
+    };
+
+    const handleDeadlineKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSaveDeadlineEdit();
+        } else if (e.key === 'Escape') {
+            handleCancelDeadlineEdit();
+        }
+    };
+
     const assigneeIds = task.assignee_ids || [];
     const assignedMembers = channelMembers.filter(m => assigneeIds.includes(m.id));
 
     const dropIndicatorColor = buttonBg;
+
+    // Calculate deadline color
+    const getDeadlineColor = () => {
+        if (task.completed) return '#28a745'; // Green for completed
+
+        if (!task.deadline) return null;
+
+        const deadline = new Date(task.deadline);
+        // Check if deadline is invalid or zero date
+        if (isNaN(deadline.getTime()) || deadline.getFullYear() < 1970) return null;
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+        const deadlineDate = new Date(deadline);
+        deadlineDate.setHours(0, 0, 0, 0);
+
+        const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        if (deadlineDate < now) {
+            return '#dc3545'; // Red for past due (before today)
+        } else if (deadlineDate <= oneWeekFromNow) {
+            return '#fd7e14'; // Orange for today or within a week
+        }
+        return null;
+    };
+
+    const deadlineColor = getDeadlineColor();
+
+    // Check if deadline is valid
+    const hasValidDeadline = task.deadline && (() => {
+        const deadline = new Date(task.deadline);
+        return !isNaN(deadline.getTime()) && deadline.getFullYear() >= 1970;
+    })();
+
+    // Format deadline for display
+    const formatDeadline = (deadlineStr: string) => {
+        const deadline = new Date(deadlineStr);
+        const now = new Date();
+        const diffTime = deadline.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        const dateStr = deadline.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: deadline.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+
+        if (diffDays < 0) {
+            return `${dateStr}`;
+        } else if (diffDays === 0) {
+            return `Today`;
+        } else if (diffDays === 1) {
+            return `Tomorrow`;
+        } else if (diffDays <= 7) {
+            return `${dateStr} (${diffDays} days)`;
+        }
+        return dateStr;
+    };
 
     return (
         <div style={{ position: 'relative' }}>
@@ -2001,6 +2197,7 @@ const TaskItemComponent: React.FC<{
                     borderRadius: '4px',
                     marginBottom: '8px',
                     border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
+                    borderLeft: deadlineColor ? `4px solid ${deadlineColor}` : `1px solid ${borderColor}`,
                     opacity: isDragging ? 0.4 : 1,
                     cursor: 'pointer',
                     transition: 'opacity 0.2s ease, border 0.2s ease',
@@ -2045,41 +2242,178 @@ const TaskItemComponent: React.FC<{
                                 onClick={(e) => e.stopPropagation()}
                             />
                         ) : (
-                            <span
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleTextClick();
-                                }}
-                                style={{
-                                    textDecoration: task.completed ? 'line-through' : 'none',
-                                    color: task.completed ? completedText : centerChannelColor,
-                                    wordBreak: 'break-word',
-                                    fontSize: '14px',
-                                    lineHeight: '1.5',
-                                    cursor: task.completed ? 'default' : 'text',
-                                    padding: '4px 8px',
-                                    borderRadius: '3px',
-                                    transition: 'background-color 0.2s',
-                                    display: 'inline-block'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!task.completed) {
-                                        e.currentTarget.style.backgroundColor = hoverBg;
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                }}
-                                title={task.completed ? '' : 'Click to edit'}
-                            >
-                                {task.text}
-                            </span>
+                            <div style={{ display: 'inline-block' }}>
+                                <span
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTextClick();
+                                    }}
+                                    style={{
+                                        textDecoration: task.completed ? 'line-through' : 'none',
+                                        color: task.completed ? completedText : centerChannelColor,
+                                        wordBreak: 'break-word',
+                                        fontSize: '14px',
+                                        lineHeight: '1.5',
+                                        cursor: task.completed ? 'default' : 'text',
+                                        padding: '4px 8px',
+                                        borderRadius: '3px',
+                                        transition: 'background-color 0.2s',
+                                        display: 'inline-block'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!task.completed) {
+                                            e.currentTarget.style.backgroundColor = hoverBg;
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                    title={task.completed ? '' : 'Click to edit'}
+                                >
+                                    {task.text}
+                                </span>
+                                {isEditingDeadline && (
+                                    <div
+                                        style={{
+                                            marginTop: '4px',
+                                            marginLeft: '12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <input
+                                            ref={deadlineInputRef}
+                                            type="date"
+                                            value={editDeadline}
+                                            onChange={(e) => setEditDeadline(e.target.value)}
+                                            onKeyDown={handleDeadlineKeyDown}
+                                            onBlur={handleSaveDeadlineEdit}
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                                padding: '4px 8px',
+                                                fontSize: '12px',
+                                                border: `2px solid ${buttonBg}`,
+                                                borderRadius: '3px',
+                                                backgroundColor: centerChannelBg,
+                                                color: centerChannelColor,
+                                                outline: 'none'
+                                            }}
+                                        />
+                                        {editDeadline && (
+                                            <button
+                                                onMouseDown={async (e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+
+                                                    const channelId = (window as any).store?.getState()?.entities?.channels?.currentChannelId;
+                                                    if (!channelId) {
+                                                        setIsEditingDeadline(false);
+                                                        return;
+                                                    }
+
+                                                    try {
+                                                        const updatedTask = {
+                                                            ...task,
+                                                            deadline: undefined
+                                                        };
+
+                                                        const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
+                                                            method: 'PUT',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify(updatedTask)
+                                                        });
+
+                                                        if (response.ok) {
+                                                            // Update the task prop immediately
+                                                            task.deadline = undefined;
+                                                            setEditDeadline('');
+                                                            setIsEditingDeadline(false);
+                                                            // Trigger parent reload
+                                                            onUpdateText(task, task.text);
+                                                        } else {
+                                                            setIsEditingDeadline(false);
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Error clearing deadline:', error);
+                                                        setIsEditingDeadline(false);
+                                                    }
+                                                }}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: '14px',
+                                                    color: errorTextColor,
+                                                    backgroundColor: 'transparent',
+                                                    border: 'none',
+                                                    cursor: 'pointer'
+                                                }}
+                                                title="Remove deadline"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
 
+                    {hasValidDeadline && !isEditingDeadline && (
+                        <div
+                            onClick={handleDeadlineClick}
+                            style={{
+                                fontSize: '12px',
+                                color: deadlineColor || adjustOpacity(centerChannelColor, centerChannelBg, 0.6),
+                                marginTop: '2px',
+                                marginLeft: '12px',
+                                fontWeight: deadlineColor ? 500 : 400,
+                                cursor: 'pointer',
+                                padding: '2px 8px',
+                                borderRadius: '3px',
+                                display: 'inline-block',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = hoverBg;
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Click to edit deadline"
+                        >
+                            {formatDeadline(task.deadline!)}
+                        </div>
+                    )}
+                    {!hasValidDeadline && !isEditingDeadline && (
+                        <div
+                            onClick={handleDeadlineClick}
+                            style={{
+                                marginLeft: '6px',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '3px',
+                                transition: 'background-color 0.2s',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = hoverBg;
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Add deadline"
+                        >
+                            <i className="icon icon-calendar-outline" style={{ fontSize: '18px', color: dragHandleColor }} />
+                        </div>
+                    )}
+
                     <div style={{ position: 'relative', marginLeft: '6px', marginRight: '4px' }} ref={popupRef}>
                         <div
-                            onClick={() => setShowAssigneePopup(!showAssigneePopup)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowAssigneePopup(!showAssigneePopup);
+                            }}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
