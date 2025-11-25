@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="512mm"
+   height="512mm"
+   viewBox="0 0 511.99999 511.99999"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
+   sodipodi:docname="icon.svg"
+   inkscape:export-filename="icon.png"
+   inkscape:export-xdpi="86.343506"
+   inkscape:export-ydpi="86.343506"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.35567935"
+     inkscape:cx="549.65237"
+     inkscape:cy="1123.2027"
+     inkscape:window-width="2096"
+     inkscape:window-height="1156"
+     inkscape:window-x="244"
+     inkscape:window-y="25"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g8" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="matrix(3.7478535,0,0,3.7478535,-147.24733,-268.12228)">
+    <g
+       id="g10"
+       inkscape:label="Left">
+      <path
+         d="M 83.008887,83.537537 H 67.147323 c -8.787307,0 -15.861565,7.074257 -15.861565,15.861564 v 80.893769 c 0,8.7873 7.074258,15.86157 15.861565,15.86157 h 15.861564 z"
+         style="fill:#182339;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+         id="path3"
+         inkscape:label="Background" />
+      <circle
+         style="fill:#c5d2ec;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+         id="path4"
+         cx="67.147324"
+         cy="105.74376"
+         r="6.8733444"
+         inkscape:label="Circle" />
+      <g
+         id="g8"
+         inkscape:label="Channels">
+        <rect
+           style="fill:#c5d2ec;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+           id="rect4-4"
+           width="16.390284"
+           height="5.2871885"
+           x="58.952179"
+           y="140.75609"
+           ry="2.6435943"
+           inkscape:label="Channel 3" />
+        <rect
+           style="fill:#ffffff;fill-opacity:1;stroke-width:11.2439;stroke-linecap:round;stroke-linejoin:round"
+           id="rect4-2"
+           width="18.500246"
+           height="5.2871885"
+           x="58.952179"
+           y="131.18071"
+           ry="2.6435943"
+           inkscape:label="Channel 2" />
+        <rect
+           style="fill:#c5d2ec;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+           id="rect4"
+           width="16.390284"
+           height="5.2871885"
+           x="58.952179"
+           y="121.60532"
+           ry="2.6435943"
+           inkscape:label="Channel 1" />
+      </g>
+    </g>
+    <g
+       id="g9"
+       inkscape:label="Right">
+      <path
+         d="M 83.008887,83.537537 V 196.15444 h 65.032203 c 8.78731,0 15.86157,-7.07427 15.86157,-15.86157 V 99.399101 c 0,-8.787307 -7.07426,-15.861564 -15.86157,-15.861564 z"
+         style="fill:#c5d2ec;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+         id="path2"
+         inkscape:label="Background" />
+      <g
+         id="g7"
+         transform="translate(2.7386606)"
+         inkscape:label="Task 3">
+        <g
+           id="g6"
+           transform="translate(-3.1633199,-8.4595032)"
+           inkscape:label="Check">
+          <circle
+             style="fill:#182339;fill-opacity:1;stroke-width:16.5786;stroke-linecap:round;stroke-linejoin:round"
+             id="path5"
+             cx="104.68633"
+             cy="114.20326"
+             r="10.965391"
+             inkscape:label="Circle" />
+          <path
+             style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:2.80458;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+             d="m 98.674592,115.40946 3.923158,3.70184 8.10032,-8.48606"
+             id="path6"
+             sodipodi:nodetypes="ccc"
+             inkscape:label="Checkmark" />
+        </g>
+        <rect
+           style="fill:#182339;fill-opacity:1;stroke:none;stroke-width:3.5812;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+           id="rect6"
+           width="30.94552"
+           height="7.8395319"
+           x="119.93108"
+           y="101.82399"
+           ry="3.7671218"
+           inkscape:label="Text" />
+      </g>
+      <g
+         id="g7-0"
+         transform="translate(2.7386606,32.910544)"
+         inkscape:label="Task 2">
+        <g
+           id="g6-1"
+           transform="translate(-3.1633199,-8.4595032)"
+           inkscape:label="Check">
+          <circle
+             style="fill:#182339;fill-opacity:1;stroke-width:16.5786;stroke-linecap:round;stroke-linejoin:round"
+             id="path5-9"
+             cx="104.68633"
+             cy="114.20326"
+             r="10.965391"
+             inkscape:label="Circle" />
+          <path
+             style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:2.80458;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+             d="m 98.674592,115.40946 3.923158,3.70184 8.10032,-8.48606"
+             id="path6-4"
+             sodipodi:nodetypes="ccc"
+             inkscape:label="Checkmark" />
+        </g>
+        <rect
+           style="fill:#182339;fill-opacity:1;stroke:none;stroke-width:3.5812;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+           id="rect6-5"
+           width="30.94552"
+           height="7.8395319"
+           x="119.93108"
+           y="101.82399"
+           ry="3.7671218"
+           inkscape:label="Text" />
+      </g>
+      <g
+         id="g7-6"
+         transform="translate(2.7386606,65.821088)"
+         inkscape:label="Task 1">
+        <g
+           id="g6-4"
+           transform="translate(-3.1633199,-8.4595032)"
+           inkscape:label="Check">
+          <circle
+             style="fill:#182339;fill-opacity:1;stroke-width:16.5786;stroke-linecap:round;stroke-linejoin:round"
+             id="path5-0"
+             cx="104.68633"
+             cy="114.20326"
+             r="10.965391"
+             inkscape:label="Circle" />
+          <path
+             style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:2.80458;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+             d="m 98.674592,115.40946 3.923158,3.70184 8.10032,-8.48606"
+             id="path6-8"
+             sodipodi:nodetypes="ccc"
+             inkscape:label="Checkmark" />
+        </g>
+        <rect
+           style="fill:#182339;fill-opacity:1;stroke:none;stroke-width:3.5812;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+           id="rect6-2"
+           width="30.94552"
+           height="7.8395319"
+           x="119.93108"
+           y="101.82399"
+           ry="3.7671218"
+           inkscape:label="Text" />
+      </g>
+    </g>
+  </g>
+</svg>
