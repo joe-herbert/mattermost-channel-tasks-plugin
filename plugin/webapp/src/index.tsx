@@ -794,9 +794,8 @@ class TaskSidebar extends React.Component<any> {
             });
         } else if (filterDeadline === 'custom') {
             filtered = filtered.filter(task => {
-                if (!task.deadline && !this.state.filterDeadlineCustomFrom && !this.state.filterDeadlineCustomTo) return true;
+                if (!this.state.filterDeadlineCustomFrom && !this.state.filterDeadlineCustomTo) return true;
                 if (!task.deadline) return false;
-                if (task.deadline && !this.state.filterDeadlineCustomFrom && !this.state.filterDeadlineCustomTo) return false;
 
                 const taskDate = new Date(task.deadline);
                 const from = new Date(this.state.filterDeadlineCustomFrom || "0000-01-01");
