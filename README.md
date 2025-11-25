@@ -2,6 +2,8 @@
 
 A Mattermost plugin that adds a comprehensive task list feature to each channel with grouping, assignment, filtering, and drag-and-drop reordering capabilities.
 
+This plugin differs from other todo plugins by having a task list specific to each channel, meaning if you have a channel for a project or group, they can have their own task list.
+
 ## Features
 
 - **Channel-Specific Task Lists**: Each channel has its own independent task list with dynamic titles
