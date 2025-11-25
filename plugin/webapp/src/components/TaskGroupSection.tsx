@@ -219,58 +219,56 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                         justifyContent: 'space-between',
                         alignItems: 'center'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                            {isEditingName ? (
-                                <input
-                                    ref={nameInputRef}
-                                    type="text"
-                                    value={editName}
-                                    onChange={(e) => setEditName(e.target.value)}
-                                    onKeyDown={handleNameKeyDown}
-                                    onBlur={handleSaveNameEdit}
-                                    style={{
-                                        padding: '4px 8px',
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px',
-                                        border: `2px solid ${buttonBg}`,
-                                        borderRadius: '3px',
-                                        backgroundColor: centerChannelBg,
-                                        color: centerChannelColor,
-                                        outline: 'none'
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                            ) : (
-                                <h4
-                                    onClick={handleNameClick}
-                                    style={{
-                                        margin: 0,
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        textTransform: 'uppercase',
-                                        color: subtleText,
-                                        letterSpacing: '0.5px',
-                                        cursor: (group && onUpdateGroupName) ? 'text' : 'default',
-                                        padding: '4px 8px',
-                                        borderRadius: '3px',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (group && onUpdateGroupName) {
-                                            e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                    }}
-                                    title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
-                                >
-                                    {title}
-                                </h4>
-                            )}
-                        </div>
+                        {isEditingName ? (
+                            <input
+                                ref={nameInputRef}
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={handleNameKeyDown}
+                                onBlur={handleSaveNameEdit}
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    border: `2px solid ${buttonBg}`,
+                                    borderRadius: '3px',
+                                    backgroundColor: centerChannelBg,
+                                    color: centerChannelColor,
+                                    outline: 'none'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <h4
+                                onClick={handleNameClick}
+                                style={{
+                                    margin: 0,
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    color: subtleText,
+                                    letterSpacing: '0.5px',
+                                    cursor: (group && onUpdateGroupName) ? 'text' : 'default',
+                                    padding: '4px 8px',
+                                    borderRadius: '3px',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (group && onUpdateGroupName) {
+                                        e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
+                            >
+                                {title}
+                            </h4>
+                        )}
                         {onDeleteGroup && (
                             <button
                                 onClick={onDeleteGroup}
@@ -358,58 +356,56 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                     alignItems: 'center',
                     marginBottom: tasks.length > 0 ? '4px' : '0'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                        {isEditingName ? (
-                            <input
-                                ref={nameInputRef}
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                onKeyDown={handleNameKeyDown}
-                                onBlur={handleSaveNameEdit}
-                                style={{
-                                    padding: '4px 8px',
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px',
-                                    border: `2px solid ${buttonBg}`,
-                                    borderRadius: '3px',
-                                    backgroundColor: centerChannelBg,
-                                    color: centerChannelColor,
-                                    outline: 'none'
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        ) : (
-                            <h4
-                                onClick={handleNameClick}
-                                style={{
-                                    margin: 0,
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    color: subtleText,
-                                    letterSpacing: '0.5px',
-                                    cursor: (group && onUpdateGroupName) ? 'text' : 'default',
-                                    padding: '4px 8px',
-                                    borderRadius: '3px',
-                                    transition: 'background-color 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (group && onUpdateGroupName) {
-                                        e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                }}
-                                title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
-                            >
-                                {title}
-                            </h4>
-                        )}
-                    </div>
+                    {isEditingName ? (
+                        <input
+                            ref={nameInputRef}
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={handleNameKeyDown}
+                            onBlur={handleSaveNameEdit}
+                            style={{
+                                padding: '4px 8px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                border: `2px solid ${buttonBg}`,
+                                borderRadius: '3px',
+                                backgroundColor: centerChannelBg,
+                                color: centerChannelColor,
+                                outline: 'none'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <h4
+                            onClick={handleNameClick}
+                            style={{
+                                margin: 0,
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                color: subtleText,
+                                letterSpacing: '0.5px',
+                                cursor: (group && onUpdateGroupName) ? 'text' : 'default',
+                                padding: '4px 8px',
+                                borderRadius: '3px',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (group && onUpdateGroupName) {
+                                    e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
+                        >
+                            {title}
+                        </h4>
+                    )}
                     {onDeleteGroup && (
                         <button
                             onClick={onDeleteGroup}
