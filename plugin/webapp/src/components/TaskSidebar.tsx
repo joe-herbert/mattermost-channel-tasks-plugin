@@ -3,6 +3,7 @@ import {ChannelTaskList, TaskGroup, TaskItem} from '../types';
 import {adjustOpacity} from '../utils';
 import {TaskGroupSection} from './TaskGroupSection';
 import {DeleteGroupWarning} from './DeleteGroupWarning';
+import {DeleteCompletedWarning} from './DeleteCompletedWarning';
 
 interface TaskSidebarProps {
     channelId?: string;
@@ -95,6 +96,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         groupToDelete: null as { id: string, name: string, taskCount: number } | null,
         hasEverHadTasks: false,
         showConfetti: false,
+        deleteCompletedWarningShown: false,
     };
 
     componentDidMount() {
@@ -118,7 +120,6 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             this.loadTasks();
             this.loadChannelMembers();
         }
-        // Check if all tasks just became complete
         const prevHadIncompleteTasks = prevState.tasks.some((t: TaskItem) => !t.completed);
         const currentHasIncompleteTasks = this.state.tasks.some(t => !t.completed);
         const hadTasks = prevState.tasks.length > 0;
@@ -339,6 +340,44 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         }
     };
 
+    // Delete completed tasks methods
+    getCompletedTasks = () => this.state.tasks.filter(t => t.completed);
+
+    confirmDeleteCompleted = () => {
+        const completedTasks = this.getCompletedTasks();
+        if (completedTasks.length === 0) return;
+        const dontWarn = localStorage.getItem('mattermost-task-dont-warn-delete-completed') === 'true';
+        if (dontWarn) {
+            this.deleteCompletedTasks();
+        } else {
+            this.setState({deleteCompletedWarningShown: true});
+        }
+    };
+
+    deleteCompletedTasks = async () => {
+        const channelId = this.getChannelId();
+        if (!channelId) return;
+        try {
+            const completedTasks = this.getCompletedTasks();
+            for (const task of completedTasks) {
+                await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${task.id}`, {method: 'DELETE'});
+            }
+            this.setState({deleteCompletedWarningShown: false});
+            this.loadTasks();
+        } catch (e) {
+            console.error('Error deleting completed tasks:', e);
+        }
+    };
+
+    cancelDeleteCompleted = () => {
+        this.setState({deleteCompletedWarningShown: false});
+    };
+
+    deleteCompletedWithPreference = (dontWarn: boolean) => {
+        if (dontWarn) localStorage.setItem('mattermost-task-dont-warn-delete-completed', 'true');
+        this.deleteCompletedTasks();
+    };
+
     handleDragStart = (task: TaskItem) => {
         setTimeout(() => this.setState({draggedTask: task}), 0);
     };
@@ -532,7 +571,8 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             deleteGroupWarningShown,
             groupToDelete,
             hasEverHadTasks,
-            showConfetti
+            showConfetti,
+            deleteCompletedWarningShown
         } = this.state;
         const theme = this.props.theme || {};
         const centerChannelBg = theme.centerChannelBg || '#ffffff';
@@ -540,6 +580,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         const buttonBg = theme.buttonBg || '#1c58d9';
         const buttonColor = theme.buttonColor || '#ffffff';
         const onlineIndicator = theme.onlineIndicator || '#28a745';
+        const errorTextColor = theme.errorTextColor || '#dc3545';
         const subtleBackground = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
         const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
         const subtleText = adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
@@ -547,10 +588,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         const allTasksComplete = hasEverHadTasks && this.state.tasks.length > 0 && this.state.tasks.every(t => t.completed);
         const noTasksExist = this.state.tasks.length === 0;
         const noFilteredTasks = this.state.tasks.length > 0 && sortedGroups.every(g => this.groupedTasks(g.id).length === 0) && this.groupedTasks(null).length === 0;
+        const completedTasksCount = this.getCompletedTasks().length;
 
         return (
-            <div style={{height: 'calc(100% - 50px)', display: 'flex', flexDirection: 'column', padding: '0', backgroundColor: centerChannelBg, color: centerChannelColor}}>
-                <div style={{flex: 1, overflowY: 'auto', padding: '20px', position: 'relative'}} onDragOver={(e) => e.preventDefault()}>
+            <div style={{height: 'calc(100% - 50px)', display: 'flex', flexDirection: 'column', padding: '0', backgroundColor: centerChannelBg, color: centerChannelColor, position: 'relative'}}>
+                <div style={{flex: 1, overflowY: 'auto', padding: '20px', paddingBottom: '80px', position: 'relative'}} onDragOver={(e) => e.preventDefault()}>
                     {showConfetti && <ConfettiAnimation theme={theme}/>}
                     <div style={{marginBottom: '20px', display: 'flex', gap: '8px'}}>
                         <button onClick={() => this.setState({showTaskForm: !showTaskForm, showGroupForm: false, showFilters: false})} style={{
@@ -601,147 +643,77 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                         <div style={{marginBottom: '20px'}}>
                             <div style={{marginBottom: '12px', display: 'flex', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
                                 <button onClick={() => this.setState({filterMyTasks: false}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
                                     color: !filterMyTasks ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderRight: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderRight: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>All
                                 </button>
                                 <button onClick={() => this.setState({filterMyTasks: true}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
                                     color: filterMyTasks ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Assigned to me
                                 </button>
                             </div>
                             <div style={{marginBottom: '12px', display: 'flex', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
                                 <button onClick={() => this.setState({filterCompletion: 'all'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterCompletion === 'all' ? buttonBg : subtleBackground,
                                     color: filterCompletion === 'all' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderRight: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderRight: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>All
                                 </button>
                                 <button onClick={() => this.setState({filterCompletion: 'complete'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterCompletion === 'complete' ? buttonBg : subtleBackground,
                                     color: filterCompletion === 'complete' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderRight: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderRight: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Complete
                                 </button>
                                 <button onClick={() => this.setState({filterCompletion: 'incomplete'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterCompletion === 'incomplete' ? buttonBg : subtleBackground,
                                     color: filterCompletion === 'incomplete' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Incomplete
                                 </button>
                             </div>
                             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
                                 <button onClick={() => this.setState({filterDeadline: 'all'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterDeadline === 'all' ? buttonBg : subtleBackground,
                                     color: filterDeadline === 'all' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderRight: `1px solid ${borderColor}`,
-                                    borderBottom: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>All
                                 </button>
                                 <button onClick={() => this.setState({filterDeadline: 'today'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterDeadline === 'today' ? buttonBg : subtleBackground,
                                     color: filterDeadline === 'today' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderBottom: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderBottom: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Due Today
                                 </button>
                                 <button onClick={() => this.setState({filterDeadline: 'one-week'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterDeadline === 'one-week' ? buttonBg : subtleBackground,
                                     color: filterDeadline === 'one-week' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderRight: `1px solid ${borderColor}`,
-                                    borderBottom: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Due Within 1 Week
                                 </button>
                                 <button onClick={() => this.setState({filterDeadline: 'overdue'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterDeadline === 'overdue' ? buttonBg : subtleBackground,
                                     color: filterDeadline === 'overdue' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    borderBottom: `1px solid ${borderColor}`,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none'
+                                    border: 'none', borderBottom: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
                                 }}>Past Due
                                 </button>
                                 <button onClick={() => this.setState({filterDeadline: 'custom'}, () => this.saveFilterSettings())} style={{
-                                    flex: 1,
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 500,
+                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
                                     backgroundColor: filterDeadline === 'custom' ? buttonBg : subtleBackground,
                                     color: filterDeadline === 'custom' ? buttonColor : centerChannelColor,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    userSelect: 'none',
-                                    gridColumn: '1 / span 2'
+                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none', gridColumn: '1 / span 2'
                                 }}>Custom Deadline Range
                                 </button>
                             </div>
@@ -841,8 +813,45 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
                 </div>
 
+                {/* Floating Delete Completed Button */}
+                {completedTasksCount > 0 && (
+                    <button
+                        onClick={this.confirmDeleteCompleted}
+                        style={{
+                            position: 'absolute',
+                            bottom: '20px',
+                            right: '20px',
+                            padding: '12px',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            backgroundColor: errorTextColor,
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.2s',
+                            zIndex: 100
+                        }}
+                        title={`Delete ${completedTasksCount} completed task${completedTasksCount !== 1 ? 's' : ''}`}
+                    >
+                        <span>
+                            <i className="icon icon-trash-can-outline" style={{fontSize: '16px'}}/>
+                            <i className="icon icon-check" style={{fontSize: '16px'}}/>
+                        </span>
+                        {completedTasksCount}
+                    </button>
+                )}
+
                 {deleteGroupWarningShown && groupToDelete && (
                     <DeleteGroupWarning groupName={groupToDelete.name} taskCount={groupToDelete.taskCount} onConfirm={this.deleteGroupWithPreference} onCancel={this.cancelDeleteGroup} theme={theme}/>
+                )}
+
+                {deleteCompletedWarningShown && (
+                    <DeleteCompletedWarning taskCount={completedTasksCount} onConfirm={this.deleteCompletedWithPreference} onCancel={this.cancelDeleteCompleted} theme={theme}/>
                 )}
             </div>
         );
