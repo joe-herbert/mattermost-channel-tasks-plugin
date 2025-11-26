@@ -86,7 +86,7 @@ func (p *Plugin) OnActivate() error {
 	if err := p.API.RegisterCommand(&model.Command{
 		Trigger:          "daily-tasks-reset",
 		AutoComplete:     true,
-		AutoCompleteDesc: "Reset daily task reminder (for testing - triggers message again)",
+		AutoCompleteDesc: "Reset daily task reminder",
 	}); err != nil {
 		return fmt.Errorf("failed to register daily-tasks-reset command: %w", err)
 	}
@@ -269,7 +269,8 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 	}
 
 	sb.WriteString("---\n")
-	sb.WriteString("_Use `/daily-tasks-off` to disable these reminders._")
+	sb.WriteString("_Use `/daily-tasks-off` to disable these reminders._\n\n")
+	sb.WriteString("---\n")
 
 	channel, err := p.API.GetDirectChannel(userID, p.botUserID)
 	if err != nil {
