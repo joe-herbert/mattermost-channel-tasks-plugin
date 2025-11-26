@@ -770,7 +770,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 <input type="text" value={newTaskText} onChange={(e) => this.setState({newTaskText: e.target.value})} onKeyPress={(e) => e.key === 'Enter' && this.addTask()} placeholder="Add new task..."
                                        style={{width: '100%', padding: '10px', marginBottom: '8px', border: `1px solid ${borderColor}`, borderRadius: '4px', fontSize: '14px', backgroundColor: centerChannelBg, color: centerChannelColor}} autoFocus/>
                             </label>
-                            <label style={{width: '100%', fontWeight: "normal"}}>
+                            <label style={{width: '100%', fontWeight: "normal", display: sortedGroups.length > 0 ? 'block' : 'none'}}>
                                 <span style={{marginBottom: '4px', display: "block"}}>Group</span>
                                 <select value={selectedGroup} onChange={(e) => this.setState({selectedGroup: e.target.value})}
                                         style={{width: '100%', padding: '10px', marginBottom: '8px', border: `1px solid ${borderColor}`, borderRadius: '4px', fontSize: '14px', backgroundColor: centerChannelBg, color: centerChannelColor}}>
