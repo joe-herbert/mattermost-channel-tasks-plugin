@@ -3,7 +3,7 @@
   "name": "Channel Task List",
   "author": "Joe Herbert",
   "description": "Adds a task list for each channel with daily task reminders",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "min_server_version": "5.20.0",
   "server": {
     "executables": {
