@@ -38,7 +38,7 @@ export default class Plugin {
             React.useEffect(() => {
                 let lastChannelId: string | null = null;
 
-                const updateTitle = () => {
+                const updateTitle = async () => {
                     const state = store.getState();
                     const currentChannelId = state?.entities?.channels?.currentChannelId;
 
@@ -48,7 +48,61 @@ export default class Plugin {
 
                         if (channels && channels[currentChannelId]) {
                             const channel = channels[currentChannelId];
-                            setTitle(`${channel.display_name || channel.name} Tasks`);
+
+                            // Check if it's a DM or GM channel
+                            // Channel types: 'O' = public, 'P' = private, 'D' = DM, 'G' = GM
+                            if (channel.type === 'D') {
+                                // Direct message - get the other user's name
+                                const currentUserId = state?.entities?.users?.currentUserId;
+                                const otherUserId = channel.name
+                                    .split('__')
+                                    .find((id: string) => id !== currentUserId);
+
+                                if (otherUserId) {
+                                    const users = state?.entities?.users?.profiles;
+                                    const otherUser = users?.[otherUserId];
+
+                                    if (otherUser) {
+                                        const displayName = otherUser.nickname ||
+                                            `${otherUser.first_name || ''} ${otherUser.last_name || ''}`.trim() ||
+                                            otherUser.username;
+                                        setTitle(`${displayName} Tasks`);
+                                    } else {
+                                        // User not in cache, try to fetch
+                                        try {
+                                            const response = await fetch(`/api/v4/users/${otherUserId}`);
+                                            if (response.ok) {
+                                                const user = await response.json();
+                                                const displayName = user.nickname ||
+                                                    `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+                                                    user.username;
+                                                setTitle(`${displayName} Tasks`);
+                                            } else {
+                                                setTitle('Chat Tasks');
+                                            }
+                                        } catch {
+                                            setTitle('Chat Tasks');
+                                        }
+                                    }
+                                } else {
+                                    setTitle('Chat Tasks');
+                                }
+                            } else if (channel.type === 'G') {
+                                // Group message - use display_name or fallback
+                                if (channel.display_name && channel.display_name.trim()) {
+                                    setTitle(`${channel.display_name} Tasks`);
+                                } else {
+                                    setTitle('Group Chat Tasks');
+                                }
+                            } else {
+                                // Regular channel
+                                const channelName = channel.display_name || channel.name;
+                                if (channelName && !channelName.includes('__')) {
+                                    setTitle(`${channelName} Tasks`);
+                                } else {
+                                    setTitle('Channel Tasks');
+                                }
+                            }
                         }
                     }
                 };
