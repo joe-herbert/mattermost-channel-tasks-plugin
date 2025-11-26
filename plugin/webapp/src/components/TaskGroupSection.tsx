@@ -70,6 +70,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
     const [isEditingName, setIsEditingName] = React.useState(false);
     const [editName, setEditName] = React.useState(title);
+    const [isHeaderHovered, setIsHeaderHovered] = React.useState(false);
     const nameInputRef = React.useRef<HTMLInputElement>(null);
 
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';
@@ -208,6 +209,92 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     const dropIndicatorColor = buttonBg;
     const groupOpacity = isFiltered ? 0.5 : 1;
 
+    const renderDeleteButton = () => {
+        if (!onDeleteGroup) return null;
+        return (
+            <button
+                onClick={onDeleteGroup}
+                style={{
+                    padding: '4px',
+                    fontSize: '12px',
+                    color: errorTextColor,
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    opacity: isHeaderHovered ? 1 : 0,
+                    transition: 'opacity 0.2s'
+                }}
+            >
+                Delete Group
+            </button>
+        );
+    };
+
+    const renderHeader = () => (
+        <div
+            style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: tasks.length > 0 ? '4px' : '0'
+            }}
+            onMouseEnter={() => setIsHeaderHovered(true)}
+            onMouseLeave={() => setIsHeaderHovered(false)}
+        >
+            {isEditingName ? (
+                <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={handleNameKeyDown}
+                    onBlur={handleSaveNameEdit}
+                    style={{
+                        padding: '4px 8px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        border: `2px solid ${buttonBg}`,
+                        borderRadius: '3px',
+                        backgroundColor: centerChannelBg,
+                        color: centerChannelColor,
+                        outline: 'none'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ) : (
+                <h4
+                    onClick={handleNameClick}
+                    style={{
+                        margin: 0,
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        color: subtleText,
+                        letterSpacing: '0.5px',
+                        cursor: (group && onUpdateGroupName) ? 'text' : 'default',
+                        padding: '4px 8px',
+                        borderRadius: '3px',
+                        transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (group && onUpdateGroupName) {
+                            e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                    title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
+                >
+                    {title}
+                </h4>
+            )}
+            {renderDeleteButton()}
+        </div>
+    );
+
     if (!hasContent && !showDropZone) {
         return (
             <div style={{position: 'relative'}}>
@@ -244,79 +331,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
                         cursor: group ? 'grab' : 'default'
                     }}
                 >
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        {isEditingName ? (
-                            <input
-                                ref={nameInputRef}
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                onKeyDown={handleNameKeyDown}
-                                onBlur={handleSaveNameEdit}
-                                style={{
-                                    padding: '4px 8px',
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px',
-                                    border: `2px solid ${buttonBg}`,
-                                    borderRadius: '3px',
-                                    backgroundColor: centerChannelBg,
-                                    color: centerChannelColor,
-                                    outline: 'none'
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        ) : (
-                            <h4
-                                onClick={handleNameClick}
-                                style={{
-                                    margin: 0,
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    color: subtleText,
-                                    letterSpacing: '0.5px',
-                                    cursor: (group && onUpdateGroupName) ? 'text' : 'default',
-                                    padding: '4px 8px',
-                                    borderRadius: '3px',
-                                    transition: 'background-color 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (group && onUpdateGroupName) {
-                                        e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                }}
-                                title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
-                            >
-                                {title}
-                            </h4>
-                        )}
-                        {onDeleteGroup && (
-                            <button
-                                onClick={onDeleteGroup}
-                                style={{
-                                    padding: '4px',
-                                    fontSize: '20px',
-                                    lineHeight: '18px',
-                                    color: errorTextColor,
-                                    backgroundColor: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer'
-                                }}
-                                title="Delete group"
-                            >
-                                ×
-                            </button>
-                        )}
-                    </div>
+                    {renderHeader()}
                 </div>
                 {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'after' && (
                     <div style={{
@@ -380,80 +395,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
                     cursor: group ? 'grab' : 'default'
                 }}
             >
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: tasks.length > 0 ? '4px' : '0'
-                }}>
-                    {isEditingName ? (
-                        <input
-                            ref={nameInputRef}
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onKeyDown={handleNameKeyDown}
-                            onBlur={handleSaveNameEdit}
-                            style={{
-                                padding: '4px 8px',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                border: `2px solid ${buttonBg}`,
-                                borderRadius: '3px',
-                                backgroundColor: centerChannelBg,
-                                color: centerChannelColor,
-                                outline: 'none'
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    ) : (
-                        <h4
-                            onClick={handleNameClick}
-                            style={{
-                                margin: 0,
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                color: subtleText,
-                                letterSpacing: '0.5px',
-                                cursor: (group && onUpdateGroupName) ? 'text' : 'default',
-                                padding: '4px 8px',
-                                borderRadius: '3px',
-                                transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (group && onUpdateGroupName) {
-                                    e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                            title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
-                        >
-                            {title}
-                        </h4>
-                    )}
-                    {onDeleteGroup && (
-                        <button
-                            onClick={onDeleteGroup}
-                            style={{
-                                padding: '4px',
-                                fontSize: '20px',
-                                lineHeight: '18px',
-                                color: errorTextColor,
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer'
-                            }}
-                            title="Delete group"
-                        >
-                            ×
-                        </button>
-                    )}
-                </div>
+                {renderHeader()}
 
                 {showDropZone && (
                     <div style={{
