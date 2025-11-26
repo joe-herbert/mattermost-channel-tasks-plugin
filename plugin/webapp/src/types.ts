@@ -18,4 +18,5 @@ export interface TaskGroup {
 export interface ChannelTaskList {
     items: TaskItem[];
     groups: TaskGroup[];
+    has_ever_had_tasks: boolean;
 }

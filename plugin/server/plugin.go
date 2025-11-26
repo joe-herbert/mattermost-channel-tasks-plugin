@@ -43,8 +43,9 @@ type TaskGroup struct {
 }
 
 type ChannelTaskList struct {
-	Items  []TaskItem  `json:"items"`
-	Groups []TaskGroup `json:"groups"`
+	Items           []TaskItem  `json:"items"`
+	Groups          []TaskGroup `json:"groups"`
+	HasEverHadTasks bool        `json:"has_ever_had_tasks"`
 }
 
 type UserDailyPrefs struct {
@@ -94,30 +95,23 @@ func (p *Plugin) OnActivate() error {
 }
 
 func (p *Plugin) ensureBot() (string, error) {
-	// Try to find existing bot
 	bot, _ := p.API.GetUserByUsername(botUsername)
 	if bot != nil {
-		// Update the bot's display name via PatchBot
 		if _, err := p.API.PatchBot(bot.Id, &model.BotPatch{
 			DisplayName: model.NewString(botDisplayName),
 			Description: model.NewString(botDescription),
 		}); err != nil {
 			p.API.LogWarn("Failed to patch bot", "error", err.Error())
 		}
-
-		// ALSO update the User record's display fields
-		// This is what actually shows in the sidebar and message headers
 		bot.FirstName = botDisplayName
 		bot.LastName = ""
 		bot.Nickname = botDisplayName
 		if _, err := p.API.UpdateUser(bot); err != nil {
 			p.API.LogWarn("Failed to update bot user", "error", err.Error())
 		}
-
 		return bot.Id, nil
 	}
 
-	// Create new bot
 	createdBot, appErr := p.API.CreateBot(&model.Bot{
 		Username:    botUsername,
 		DisplayName: botDisplayName,
@@ -127,7 +121,6 @@ func (p *Plugin) ensureBot() (string, error) {
 		return "", fmt.Errorf("failed to create bot: %s", appErr.Error())
 	}
 
-	// Update the User record for the newly created bot
 	botUser, err := p.API.GetUser(createdBot.UserId)
 	if err == nil && botUser != nil {
 		botUser.FirstName = botDisplayName
@@ -138,7 +131,6 @@ func (p *Plugin) ensureBot() (string, error) {
 		}
 	}
 
-	// Set the bot profile image
 	if iconBytes, err := GetBotIconBytes(); err == nil {
 		if setErr := p.API.SetProfileImage(createdBot.UserId, iconBytes); setErr != nil {
 			p.API.LogWarn("Failed to set bot profile image", "error", setErr.Error())
@@ -362,11 +354,9 @@ func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (today, week, other []
 
 	sortTasks := func(tasks []TaskWithContext) {
 		sort.Slice(tasks, func(i, j int) bool {
-			// Sort by channel name first
 			if tasks[i].ChannelName != tasks[j].ChannelName {
 				return tasks[i].ChannelName < tasks[j].ChannelName
 			}
-			// Then by deadline
 			di := tasks[i].Task.Deadline
 			dj := tasks[j].Task.Deadline
 			if di != nil && dj != nil {
@@ -378,7 +368,6 @@ func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (today, week, other []
 			} else if dj != nil {
 				return false
 			}
-			// Then by task name
 			return tasks[i].Task.Text < tasks[j].Task.Text
 		})
 	}
@@ -470,7 +459,6 @@ func (p *Plugin) handleGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) getTasks(w http.ResponseWriter, r *http.Request, channelID string) {
-	// Check for daily message when user views tasks (channel switch or sidebar open)
 	userID := r.Header.Get("Mattermost-User-Id")
 	if userID != "" {
 		p.checkAndSendDailyMessage(userID)
@@ -493,6 +481,7 @@ func (p *Plugin) createTask(w http.ResponseWriter, r *http.Request, channelID st
 
 	list := p.getChannelTaskList(channelID)
 	list.Items = append(list.Items, item)
+	list.HasEverHadTasks = true
 	p.saveChannelTaskList(channelID, list)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -611,16 +600,18 @@ func (p *Plugin) getChannelTaskList(channelID string) *ChannelTaskList {
 	data, err := p.API.KVGet(key)
 	if err != nil || data == nil {
 		return &ChannelTaskList{
-			Items:  []TaskItem{},
-			Groups: []TaskGroup{},
+			Items:           []TaskItem{},
+			Groups:          []TaskGroup{},
+			HasEverHadTasks: false,
 		}
 	}
 
 	var list ChannelTaskList
 	if err := json.Unmarshal(data, &list); err != nil {
 		return &ChannelTaskList{
-			Items:  []TaskItem{},
-			Groups: []TaskGroup{},
+			Items:           []TaskItem{},
+			Groups:          []TaskGroup{},
+			HasEverHadTasks: false,
 		}
 	}
 
