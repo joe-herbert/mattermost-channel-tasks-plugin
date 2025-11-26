@@ -68,27 +68,27 @@ func (p *Plugin) OnActivate() error {
 	p.botUserID = botUserID
 
 	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "daily-tasks-on",
+		Trigger:          "tasks-message-on",
 		AutoComplete:     true,
 		AutoCompleteDesc: "Enable daily task reminders",
 	}); err != nil {
-		return fmt.Errorf("failed to register daily-tasks-on command: %w", err)
+		return fmt.Errorf("failed to register tasks-message-on command: %w", err)
 	}
 
 	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "daily-tasks-off",
+		Trigger:          "tasks-message-off",
 		AutoComplete:     true,
 		AutoCompleteDesc: "Disable daily task reminders",
 	}); err != nil {
-		return fmt.Errorf("failed to register daily-tasks-off command: %w", err)
+		return fmt.Errorf("failed to register tasks-message-off command: %w", err)
 	}
 
 	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "daily-tasks-reset",
+		Trigger:          "tasks-message-reset",
 		AutoComplete:     true,
 		AutoCompleteDesc: "Reset daily task reminder",
 	}); err != nil {
-		return fmt.Errorf("failed to register daily-tasks-reset command: %w", err)
+		return fmt.Errorf("failed to register tasks-message-reset command: %w", err)
 	}
 
 	return nil
@@ -144,11 +144,11 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 	trigger := strings.TrimPrefix(strings.Fields(args.Command)[0], "/")
 
 	switch trigger {
-	case "daily-tasks-on":
+	case "tasks-message-on":
 		return p.handleDailyTasksOn(args)
-	case "daily-tasks-off":
+	case "tasks-message-off":
 		return p.handleDailyTasksOff(args)
-	case "daily-tasks-reset":
+	case "tasks-message-reset":
 		return p.handleDailyTasksReset(args)
 	}
 	return &model.CommandResponse{}, nil
@@ -269,7 +269,7 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 	}
 
 	sb.WriteString("---\n")
-	sb.WriteString("_Use `/daily-tasks-off` to disable these reminders._\n\n")
+	sb.WriteString("_Use `/tasks-message-off` to disable these reminders._\n\n")
 	sb.WriteString("---\n")
 
 	channel, err := p.API.GetDirectChannel(userID, p.botUserID)
