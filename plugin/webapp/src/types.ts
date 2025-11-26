@@ -1,7 +1,7 @@
 export interface TaskItem {
     id: string;
     text: string;
-    notes: string;
+    notes?: string;
     completed: boolean;
     assignee_ids?: string[];
     group_id?: string;
@@ -17,6 +17,12 @@ export interface TaskGroup {
 }
 
 export interface ChannelTaskList {
+    items: TaskItem[];
+    groups: TaskGroup[];
+    has_ever_had_tasks: boolean;
+}
+
+export interface PrivateTaskList {
     items: TaskItem[];
     groups: TaskGroup[];
     has_ever_had_tasks: boolean;

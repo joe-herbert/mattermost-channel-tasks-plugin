@@ -11,6 +11,7 @@ interface TaskSidebarProps {
     channel?: any;
     theme?: any;
     onChannelChange?: (callback: () => void) => void;
+    privateTasks?: boolean;
 }
 
 const ConfettiAnimation: React.FC<{ theme: any }> = ({theme}) => {
@@ -99,6 +100,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         showConfetti: false,
         deleteCompletedWarningShown: false,
         taskToShowNotes: null as TaskItem | null,
+        privateTasks: this.props.privateTasks || false,
     };
 
     componentDidMount() {
@@ -108,16 +110,27 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         this.loadChannelMembers();
         if (this.props.onChannelChange) {
             this.props.onChannelChange(() => {
-                this.loadTasks();
-                this.loadChannelMembers();
+                if (!this.state.privateTasks) {
+                    this.loadTasks();
+                    this.loadChannelMembers();
+                }
             });
         }
+        this.setState({privateTasks: this.props.privateTasks});
     }
 
     componentDidUpdate(prevProps: any, prevState: any) {
+        if (prevProps.privateTasks !== this.props.privateTasks) {
+            this.setState({privateTasks: this.props.privateTasks}, () => {
+                this.loadTasks();
+                if (!this.props.privateTasks) {
+                    this.loadChannelMembers();
+                }
+            });
+        }
         const prevChannelId = this.getChannelId(prevProps);
         const currentChannelId = this.getChannelId(this.props);
-        if (prevChannelId && currentChannelId && prevChannelId !== currentChannelId) {
+        if (!this.state.privateTasks && prevChannelId && currentChannelId && prevChannelId !== currentChannelId) {
             this.setState({_lastChannelId: currentChannelId, showConfetti: false});
             this.loadTasks();
             this.loadChannelMembers();
@@ -139,6 +152,17 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     getChannelId(props = this.props) {
         return props.channelId || props.channel?.id || (window as any).store?.getState()?.entities?.channels?.currentChannelId;
     }
+
+    getApiBaseUrl = () => {
+        if (this.state.privateTasks) {
+            return '/plugins/com.mattermost.channel-task/api/v1/private';
+        }
+        return '/plugins/com.mattermost.channel-task/api/v1';
+    };
+
+    getUserId = () => {
+        return this.state.currentUserId || (window as any).store?.getState()?.entities?.users?.currentUserId || '';
+    };
 
     loadFilterSettings = () => {
         try {
@@ -177,19 +201,39 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     loadTasks = async () => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`);
-            const data: ChannelTaskList = await r.json();
-            const hasEverHadTasks = data.has_ever_had_tasks || false;
-            this.setState({tasks: data.items, groups: data.groups, hasEverHadTasks});
-        } catch (e) {
-            console.error('Error loading tasks:', e);
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                const r = await fetch(`${baseUrl}/tasks?user_id=${userId}`, {credentials: 'same-origin'});
+                const data: ChannelTaskList = await r.json();
+                const hasEverHadTasks = data.has_ever_had_tasks || false;
+                this.setState({tasks: data.items || [], groups: data.groups || [], hasEverHadTasks});
+            } catch (e) {
+                console.error('Error loading private tasks:', e);
+                this.setState({tasks: [], groups: [], hasEverHadTasks: false});
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                const r = await fetch(`${baseUrl}/tasks?channel_id=${channelId}`, {credentials: 'same-origin'});
+                const data: ChannelTaskList = await r.json();
+                const hasEverHadTasks = data.has_ever_had_tasks || false;
+                this.setState({tasks: data.items || [], groups: data.groups || [], hasEverHadTasks});
+            } catch (e) {
+                console.error('Error loading tasks:', e);
+            }
         }
     };
 
     loadChannelMembers = async () => {
+        if (this.state.privateTasks) {
+            this.setState({channelMembers: []});
+            return;
+        }
         const channelId = this.getChannelId();
         if (!channelId) return;
         try {
@@ -204,63 +248,128 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     addTask = async () => {
-        const {newTaskText, selectedGroup, newTaskDeadline} = this.state;
-        const channelId = this.getChannelId();
-        if (!newTaskText.trim() || !channelId) return;
-        try {
-            const taskData: any = {text: newTaskText, completed: false, group_id: selectedGroup || undefined};
-            if (newTaskDeadline) taskData.deadline = new Date(newTaskDeadline).toISOString();
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(taskData)
-            });
-            if (r.ok) {
-                this.setState({newTaskText: '', newTaskDeadline: ''});
-                await this.loadTasks();
+        const {newTaskText, selectedGroup, newTaskDeadline, privateTasks} = this.state;
+        const baseUrl = this.getApiBaseUrl();
+
+        if (!newTaskText.trim()) return;
+
+        if (privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                const taskData: any = {text: newTaskText, completed: false, group_id: selectedGroup || undefined};
+                if (newTaskDeadline) taskData.deadline = new Date(newTaskDeadline).toISOString();
+                const r = await fetch(`${baseUrl}/tasks?user_id=${userId}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(taskData), credentials: 'same-origin'
+                });
+                if (r.ok) {
+                    this.setState({newTaskText: '', newTaskDeadline: ''});
+                    await this.loadTasks();
+                }
+            } catch (e) {
+                console.error('Error adding private task:', e);
             }
-        } catch (e) {
-            console.error('Error adding task:', e);
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                const taskData: any = {text: newTaskText, completed: false, group_id: selectedGroup || undefined};
+                if (newTaskDeadline) taskData.deadline = new Date(newTaskDeadline).toISOString();
+                const r = await fetch(`${baseUrl}/tasks?channel_id=${channelId}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(taskData), credentials: 'same-origin'
+                });
+                if (r.ok) {
+                    this.setState({newTaskText: '', newTaskDeadline: ''});
+                    await this.loadTasks();
+                }
+            } catch (e) {
+                console.error('Error adding task:', e);
+            }
         }
     };
 
     toggleTask = async (task: TaskItem) => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, completed: !task.completed})
-            });
-            await this.loadTasks();
-        } catch (e) {
-            console.error('Error toggling task:', e);
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?user_id=${userId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, completed: !task.completed}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error toggling private task:', e);
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?channel_id=${channelId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, completed: !task.completed}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error toggling task:', e);
+            }
         }
     };
 
     updateTaskText = async (task: TaskItem, newText: string) => {
-        const channelId = this.getChannelId();
-        if (!channelId || !newText.trim()) return;
-        try {
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, text: newText})
-            });
-            await this.loadTasks();
-        } catch (e) {
-            console.error('Error updating task text:', e);
+        const baseUrl = this.getApiBaseUrl();
+        if (!newText.trim()) return;
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?user_id=${userId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, text: newText}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error updating private task text:', e);
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?channel_id=${channelId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, text: newText}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error updating task text:', e);
+            }
         }
     };
 
     deleteTask = async (taskId: string) => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${taskId}`, {method: 'DELETE'});
-            await this.loadTasks();
-        } catch (e) {
-            console.error('Error deleting task:', e);
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?user_id=${userId}&id=${taskId}`, {method: 'DELETE', credentials: 'same-origin'});
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting private task:', e);
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?channel_id=${channelId}&id=${taskId}`, {method: 'DELETE', credentials: 'same-origin'});
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting task:', e);
+            }
         }
     };
 
     showTaskNotes = async (task: TaskItem) => {
-        console.log('showTaskNotes', task);
         this.setState({taskToShowNotes: task})
     };
 
@@ -269,19 +378,36 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     updateTaskNotes = async (task: TaskItem, notes: string) => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, notes})
-            });
-            await this.loadTasks();
-        } catch (e) {
-            console.error('Error updating task notes:', e);
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?user_id=${userId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, notes}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error updating private task notes:', e);
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                await fetch(`${baseUrl}/tasks?channel_id=${channelId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, notes}), credentials: 'same-origin'
+                });
+                await this.loadTasks();
+            } catch (e) {
+                console.error('Error updating task notes:', e);
+            }
         }
     }
 
     toggleAssignee = async (task: TaskItem, userId: string) => {
+        if (this.state.privateTasks) return; // No assignees for private tasks
+
         const channelId = this.getChannelId();
         if (!channelId) return;
         const cur = task.assignee_ids || [];
@@ -297,19 +423,39 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     addGroup = async () => {
-        const {newGroupName} = this.state;
-        const channelId = this.getChannelId();
-        if (!newGroupName.trim() || !channelId) return;
-        try {
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: newGroupName})
-            });
-            if (r.ok) {
-                this.setState({newGroupName: ''});
-                await this.loadTasks();
+        const {newGroupName, privateTasks} = this.state;
+        const baseUrl = this.getApiBaseUrl();
+
+        if (!newGroupName.trim()) return;
+
+        if (privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                const r = await fetch(`${baseUrl}/groups?user_id=${userId}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: newGroupName}), credentials: 'same-origin'
+                });
+                if (r.ok) {
+                    this.setState({newGroupName: ''});
+                    await this.loadTasks();
+                }
+            } catch (e) {
+                console.error('Error adding private group:', e);
             }
-        } catch (e) {
-            console.error('Error adding group:', e);
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                const r = await fetch(`${baseUrl}/groups?channel_id=${channelId}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: newGroupName}), credentials: 'same-origin'
+                });
+                if (r.ok) {
+                    this.setState({newGroupName: ''});
+                    await this.loadTasks();
+                }
+            } catch (e) {
+                console.error('Error adding group:', e);
+            }
         }
     };
 
@@ -327,18 +473,36 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     deleteGroup = async (groupId: string) => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
-            for (const task of tasksInGroup) {
-                await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${task.id}`, {method: 'DELETE'});
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
+                for (const task of tasksInGroup) {
+                    await fetch(`${baseUrl}/tasks?user_id=${userId}&id=${task.id}`, {method: 'DELETE', credentials: 'same-origin'});
+                }
+                await fetch(`${baseUrl}/groups?user_id=${userId}&id=${groupId}`, {method: 'DELETE', credentials: 'same-origin'});
+                this.setState({deleteGroupWarningShown: false, groupToDelete: null});
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting private group:', e);
             }
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}&id=${groupId}`, {method: 'DELETE'});
-            this.setState({deleteGroupWarningShown: false, groupToDelete: null});
-            this.loadTasks();
-        } catch (e) {
-            console.error('Error deleting group:', e);
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                const tasksInGroup = this.state.tasks.filter(t => t.group_id === groupId);
+                for (const task of tasksInGroup) {
+                    await fetch(`${baseUrl}/tasks?channel_id=${channelId}&id=${task.id}`, {method: 'DELETE', credentials: 'same-origin'});
+                }
+                await fetch(`${baseUrl}/groups?channel_id=${channelId}&id=${groupId}`, {method: 'DELETE', credentials: 'same-origin'});
+                this.setState({deleteGroupWarningShown: false, groupToDelete: null});
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting group:', e);
+            }
         }
     };
 
@@ -352,19 +516,34 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     updateGroupName = async (group: TaskGroup, newName: string) => {
-        const channelId = this.getChannelId();
-        if (!channelId || !newName.trim()) return;
-        try {
-            await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...group, name: newName})
-            });
-            this.loadTasks();
-        } catch (e) {
-            console.error('Error updating group name:', e);
+        const baseUrl = this.getApiBaseUrl();
+        if (!newName.trim()) return;
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                await fetch(`${baseUrl}/groups?user_id=${userId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...group, name: newName}), credentials: 'same-origin'
+                });
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error updating private group name:', e);
+            }
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                await fetch(`${baseUrl}/groups?channel_id=${channelId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...group, name: newName}), credentials: 'same-origin'
+                });
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error updating group name:', e);
+            }
         }
     };
 
-    // Delete completed tasks methods
     getCompletedTasks = () => this.state.tasks.filter(t => t.completed);
 
     confirmDeleteCompleted = () => {
@@ -379,17 +558,34 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     deleteCompletedTasks = async () => {
-        const channelId = this.getChannelId();
-        if (!channelId) return;
-        try {
-            const completedTasks = this.getCompletedTasks();
-            for (const task of completedTasks) {
-                await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${task.id}`, {method: 'DELETE'});
+        const baseUrl = this.getApiBaseUrl();
+
+        if (this.state.privateTasks) {
+            const userId = this.getUserId();
+            if (!userId) return;
+            try {
+                const completedTasks = this.getCompletedTasks();
+                for (const task of completedTasks) {
+                    await fetch(`${baseUrl}/tasks?user_id=${userId}&id=${task.id}`, {method: 'DELETE', credentials: 'same-origin'});
+                }
+                this.setState({deleteCompletedWarningShown: false});
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting completed private tasks:', e);
             }
-            this.setState({deleteCompletedWarningShown: false});
-            this.loadTasks();
-        } catch (e) {
-            console.error('Error deleting completed tasks:', e);
+        } else {
+            const channelId = this.getChannelId();
+            if (!channelId) return;
+            try {
+                const completedTasks = this.getCompletedTasks();
+                for (const task of completedTasks) {
+                    await fetch(`${baseUrl}/tasks?channel_id=${channelId}&id=${task.id}`, {method: 'DELETE', credentials: 'same-origin'});
+                }
+                this.setState({deleteCompletedWarningShown: false});
+                this.loadTasks();
+            } catch (e) {
+                console.error('Error deleting completed tasks:', e);
+            }
         }
     };
 
@@ -417,12 +613,25 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDropOnTask = async (targetTask: TaskItem, position: 'before' | 'after') => {
-        const {draggedTask} = this.state;
-        const channelId = this.getChannelId();
-        if (!draggedTask || !channelId || draggedTask.id === targetTask.id) {
+        const {draggedTask, privateTasks} = this.state;
+        const baseUrl = this.getApiBaseUrl();
+
+        if (!draggedTask || draggedTask.id === targetTask.id) {
             this.setState({draggedTask: null, dragOverTaskId: null, dragOverPosition: null});
             return;
         }
+
+        const channelId = this.getChannelId();
+        const userId = this.getUserId();
+        if (!privateTasks && !channelId) {
+            this.setState({draggedTask: null, dragOverTaskId: null, dragOverPosition: null});
+            return;
+        }
+        if (privateTasks && !userId) {
+            this.setState({draggedTask: null, dragOverTaskId: null, dragOverPosition: null});
+            return;
+        }
+
         try {
             const targetGroupId = targetTask.group_id || null;
             const tasksInGroup = this.state.tasks.filter(t => (t.group_id || null) === targetGroupId).sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
@@ -439,9 +648,12 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             } else {
                 newOrder = new Date(new Date(targetTask.created_at).getTime() + 1000).toISOString();
             }
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
+
+            const url = privateTasks ? `${baseUrl}/tasks?user_id=${userId}` : `${baseUrl}/tasks?channel_id=${channelId}`;
+            const r = await fetch(url, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...draggedTask, group_id: targetGroupId || undefined, created_at: newOrder})
+                body: JSON.stringify({...draggedTask, group_id: targetGroupId || undefined, created_at: newOrder}),
+                credentials: 'same-origin'
             });
             if (r.ok) {
                 this.setState({draggedTask: null, dragOverTaskId: null, dragOverPosition: null});
@@ -454,18 +666,27 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDrop = async (targetGroupId: string | null) => {
-        const {draggedTask} = this.state;
+        const {draggedTask, privateTasks} = this.state;
+        const baseUrl = this.getApiBaseUrl();
+
+        if (!draggedTask) return;
+
         const channelId = this.getChannelId();
-        if (!draggedTask || !channelId) return;
+        const userId = this.getUserId();
+        if (!privateTasks && !channelId) return;
+        if (privateTasks && !userId) return;
+
         const curGroupId = draggedTask.group_id || null;
         if (curGroupId === targetGroupId) {
             this.setState({draggedTask: null});
             return;
         }
         try {
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
+            const url = privateTasks ? `${baseUrl}/tasks?user_id=${userId}` : `${baseUrl}/tasks?channel_id=${channelId}`;
+            const r = await fetch(url, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...draggedTask, group_id: targetGroupId || undefined})
+                body: JSON.stringify({...draggedTask, group_id: targetGroupId || undefined}),
+                credentials: 'same-origin'
             });
             if (r.ok) {
                 this.setState({draggedTask: null});
@@ -492,12 +713,25 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDropOnGroup = async (targetGroup: TaskGroup, position: 'before' | 'after') => {
-        const {draggedGroup} = this.state;
-        const channelId = this.getChannelId();
-        if (!draggedGroup || !channelId || draggedGroup.id === targetGroup.id) {
+        const {draggedGroup, privateTasks} = this.state;
+        const baseUrl = this.getApiBaseUrl();
+
+        if (!draggedGroup || draggedGroup.id === targetGroup.id) {
             this.setState({draggedGroup: null, dragOverGroupId: null, dragOverGroupPosition: null});
             return;
         }
+
+        const channelId = this.getChannelId();
+        const userId = this.getUserId();
+        if (!privateTasks && !channelId) {
+            this.setState({draggedGroup: null, dragOverGroupId: null, dragOverGroupPosition: null});
+            return;
+        }
+        if (privateTasks && !userId) {
+            this.setState({draggedGroup: null, dragOverGroupId: null, dragOverGroupPosition: null});
+            return;
+        }
+
         try {
             const sortedGroups = [...this.state.groups].sort((a, b) => (a.order || a.id).localeCompare(b.order || b.id));
             const targetIndex = sortedGroups.findIndex(g => g.id === targetGroup.id);
@@ -514,9 +748,12 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             } else {
                 newOrder = targetOrder + '~';
             }
-            const r = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
+
+            const url = privateTasks ? `${baseUrl}/groups?user_id=${userId}` : `${baseUrl}/groups?channel_id=${channelId}`;
+            const r = await fetch(url, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...draggedGroup, order: newOrder})
+                body: JSON.stringify({...draggedGroup, order: newOrder}),
+                credentials: 'same-origin'
             });
             if (r.ok) {
                 this.setState({draggedGroup: null, dragOverGroupId: null, dragOverGroupPosition: null});
@@ -529,9 +766,9 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     groupedTasks = (groupId: string | null) => {
-        const {filterMyTasks, filterCompletion, filterDeadline, currentUserId, filterDeadlineCustomFrom, filterDeadlineCustomTo} = this.state;
+        const {filterMyTasks, filterCompletion, filterDeadline, currentUserId, filterDeadlineCustomFrom, filterDeadlineCustomTo, privateTasks} = this.state;
         let filtered = this.state.tasks.filter(task => groupId === null ? !task.group_id : task.group_id === groupId);
-        if (filterMyTasks && currentUserId) filtered = filtered.filter(task => (task.assignee_ids || []).includes(currentUserId));
+        if (!privateTasks && filterMyTasks && currentUserId) filtered = filtered.filter(task => (task.assignee_ids || []).includes(currentUserId));
         if (filterCompletion === 'complete') filtered = filtered.filter(task => task.completed);
         else if (filterCompletion === 'incomplete') filtered = filtered.filter(task => !task.completed);
         if (filterDeadline === 'today') {
@@ -573,31 +810,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
     render() {
         const {
-            newTaskText,
-            newGroupName,
-            selectedGroup,
-            newTaskDeadline,
-            channelMembers,
-            showGroupForm,
-            showTaskForm,
-            showFilters,
-            draggedTask,
-            filterMyTasks,
-            filterCompletion,
-            filterDeadline,
-            filterDeadlineCustomFrom,
-            filterDeadlineCustomTo,
-            dragOverTaskId,
-            dragOverPosition,
-            draggedGroup,
-            dragOverGroupId,
-            dragOverGroupPosition,
-            deleteGroupWarningShown,
-            groupToDelete,
-            hasEverHadTasks,
-            showConfetti,
-            deleteCompletedWarningShown,
-            taskToShowNotes
+            newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm,
+            showFilters, draggedTask, filterMyTasks, filterCompletion, filterDeadline, filterDeadlineCustomFrom,
+            filterDeadlineCustomTo, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition,
+            deleteGroupWarningShown, groupToDelete, hasEverHadTasks, showConfetti, deleteCompletedWarningShown,
+            taskToShowNotes, privateTasks
         } = this.state;
         const theme = this.props.theme || {};
         const centerChannelBg = theme.centerChannelBg || '#ffffff';
@@ -621,44 +838,26 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     {showConfetti && <ConfettiAnimation theme={theme}/>}
                     <div style={{marginBottom: '20px', display: 'flex', gap: '8px'}}>
                         <button onClick={() => this.setState({showTaskForm: !showTaskForm, showGroupForm: false, showFilters: false})} style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            fontSize: '14px',
-                            fontWeight: 500,
+                            flex: 1, padding: '8px 12px', fontSize: '14px', fontWeight: 500,
                             backgroundColor: showTaskForm ? buttonBg : subtleBackground,
                             color: showTaskForm ? buttonColor : centerChannelColor,
-                            border: `1px solid ${borderColor}`,
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            border: `1px solid ${borderColor}`, borderRadius: '4px', cursor: 'pointer', transition: 'all 0.2s'
                         }}>
                             {showTaskForm ? '− Add Task' : '+ Add Task'}
                         </button>
                         <button onClick={() => this.setState({showGroupForm: !showGroupForm, showTaskForm: false, showFilters: false})} style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            fontSize: '14px',
-                            fontWeight: 500,
+                            flex: 1, padding: '8px 12px', fontSize: '14px', fontWeight: 500,
                             backgroundColor: showGroupForm ? onlineIndicator : subtleBackground,
                             color: showGroupForm ? '#ffffff' : centerChannelColor,
-                            border: `1px solid ${borderColor}`,
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            border: `1px solid ${borderColor}`, borderRadius: '4px', cursor: 'pointer', transition: 'all 0.2s'
                         }}>
                             {showGroupForm ? '− Add Group' : '+ Add Group'}
                         </button>
                         <button onClick={() => this.setState({showFilters: !showFilters, showGroupForm: false, showTaskForm: false}, () => this.saveFilterSettings())} style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            fontSize: '14px',
-                            fontWeight: 500,
+                            flex: 1, padding: '8px 12px', fontSize: '14px', fontWeight: 500,
                             backgroundColor: showFilters ? buttonBg : subtleBackground,
                             color: showFilters ? buttonColor : centerChannelColor,
-                            border: `1px solid ${borderColor}`,
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            border: `1px solid ${borderColor}`, borderRadius: '4px', cursor: 'pointer', transition: 'all 0.2s'
                         }}>
                             {showFilters ? '− Filters' : '+ Filters'}
                         </button>
@@ -666,22 +865,24 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
                     {showFilters && (
                         <div style={{marginBottom: '20px'}}>
-                            <div style={{marginBottom: '12px', display: 'flex', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
-                                <button onClick={() => this.setState({filterMyTasks: false}, () => this.saveFilterSettings())} style={{
-                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
-                                    backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
-                                    color: !filterMyTasks ? buttonColor : centerChannelColor,
-                                    border: 'none', borderRight: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
-                                }}>All
-                                </button>
-                                <button onClick={() => this.setState({filterMyTasks: true}, () => this.saveFilterSettings())} style={{
-                                    flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
-                                    backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
-                                    color: filterMyTasks ? buttonColor : centerChannelColor,
-                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
-                                }}>Assigned to me
-                                </button>
-                            </div>
+                            {!privateTasks && (
+                                <div style={{marginBottom: '12px', display: 'flex', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
+                                    <button onClick={() => this.setState({filterMyTasks: false}, () => this.saveFilterSettings())} style={{
+                                        flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
+                                        backgroundColor: !filterMyTasks ? buttonBg : subtleBackground,
+                                        color: !filterMyTasks ? buttonColor : centerChannelColor,
+                                        border: 'none', borderRight: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
+                                    }}>All
+                                    </button>
+                                    <button onClick={() => this.setState({filterMyTasks: true}, () => this.saveFilterSettings())} style={{
+                                        flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
+                                        backgroundColor: filterMyTasks ? buttonBg : subtleBackground,
+                                        color: filterMyTasks ? buttonColor : centerChannelColor,
+                                        border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
+                                    }}>Assigned to me
+                                    </button>
+                                </div>
+                            )}
                             <div style={{marginBottom: '12px', display: 'flex', gap: '0', border: `1px solid ${borderColor}`, borderRadius: '4px', overflow: 'hidden'}}>
                                 <button onClick={() => this.setState({filterCompletion: 'all'}, () => this.saveFilterSettings())} style={{
                                     flex: 1, padding: '8px 16px', fontSize: '14px', fontWeight: 500,
@@ -798,21 +999,21 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
 
                     {sortedGroups.map(group => (
-                        <TaskGroupSection key={group.id} title={group.name} groupId={group.id} group={group} tasks={this.groupedTasks(group.id)} channelMembers={channelMembers} onToggle={this.toggleTask} onDelete={this.deleteTask} onToggleAssignee={this.toggleAssignee}
+                        <TaskGroupSection key={group.id} title={group.name} groupId={group.id} group={group} tasks={this.groupedTasks(group.id)} channelMembers={privateTasks ? [] : channelMembers} onToggle={this.toggleTask} onDelete={this.deleteTask} onToggleAssignee={this.toggleAssignee}
                                           onUpdateText={this.updateTaskText} onDeleteGroup={() => this.confirmDeleteGroup(group.id)} onUpdateGroupName={this.updateGroupName} onDragStart={this.handleDragStart} onDragEnd={this.handleDragEnd} onDrop={this.handleDrop}
                                           onDragOverTask={this.handleDragOverTask} onDragLeaveTask={this.handleDragLeaveTask} onDropOnTask={this.handleDropOnTask} isDragging={!!draggedTask} dragOverTaskId={dragOverTaskId} dragOverPosition={dragOverPosition}
                                           onDragStartGroup={this.handleDragStartGroup} onDragEndGroup={this.handleDragEndGroup} onDragOverGroup={this.handleDragOverGroup} onDragLeaveGroup={this.handleDragLeaveGroup} onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup}
-                                          isDropTargetGroup={dragOverGroupId === group.id} dropPositionGroup={dragOverGroupId === group.id ? dragOverGroupPosition : null} theme={theme} showNotes={this.showTaskNotes}/>
+                                          isDropTargetGroup={dragOverGroupId === group.id} dropPositionGroup={dragOverGroupId === group.id ? dragOverGroupPosition : null} theme={theme} showNotes={this.showTaskNotes} hideAssignees={privateTasks}/>
                     ))}
 
-                    <TaskGroupSection title="Ungrouped" groupId={null} group={null} tasks={this.groupedTasks(null)} channelMembers={channelMembers} onToggle={this.toggleTask} onDelete={this.deleteTask} onToggleAssignee={this.toggleAssignee} onUpdateText={this.updateTaskText}
+                    <TaskGroupSection title="Ungrouped" groupId={null} group={null} tasks={this.groupedTasks(null)} channelMembers={privateTasks ? [] : channelMembers} onToggle={this.toggleTask} onDelete={this.deleteTask} onToggleAssignee={this.toggleAssignee} onUpdateText={this.updateTaskText}
                                       onDragStart={this.handleDragStart} onDragEnd={this.handleDragEnd} onDrop={this.handleDrop} onDragOverTask={this.handleDragOverTask} onDragLeaveTask={this.handleDragLeaveTask} onDropOnTask={this.handleDropOnTask} isDragging={!!draggedTask}
                                       dragOverTaskId={dragOverTaskId} dragOverPosition={dragOverPosition} onDragStartGroup={this.handleDragStartGroup} onDragEndGroup={this.handleDragEndGroup} onDragOverGroup={this.handleDragOverGroup} onDragLeaveGroup={this.handleDragLeaveGroup}
-                                      onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup} isDropTargetGroup={false} dropPositionGroup={null} theme={theme} showNotes={this.showTaskNotes}/>
+                                      onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup} isDropTargetGroup={false} dropPositionGroup={null} theme={theme} showNotes={this.showTaskNotes} hideAssignees={privateTasks}/>
 
                     {noTasksExist && !hasEverHadTasks && (
                         <div style={{textAlign: 'center', padding: '40px 20px', color: subtleText}}>
-                            No tasks yet. Add one above to get started!
+                            {privateTasks ? 'No private tasks yet. Add one above to get started!' : 'No tasks yet. Add one above to get started!'}
                         </div>
                     )}
 
@@ -838,28 +1039,13 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
                 </div>
 
-                {/* Floating Delete Completed Button */}
                 {completedTasksCount > 0 && (
                     <button
                         onClick={this.confirmDeleteCompleted}
                         style={{
-                            position: 'absolute',
-                            bottom: '20px',
-                            right: '20px',
-                            padding: '12px',
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            backgroundColor: errorTextColor,
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'all 0.2s',
-                            zIndex: 100
+                            position: 'absolute', bottom: '20px', right: '20px', padding: '12px', fontSize: '14px', fontWeight: 500,
+                            backgroundColor: errorTextColor, color: '#ffffff', border: 'none', borderRadius: '8px', cursor: 'pointer',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s', zIndex: 100
                         }}
                         title={`Delete ${completedTasksCount} completed task${completedTasksCount !== 1 ? 's' : ''}`}
                     >

@@ -34,39 +34,15 @@ interface TaskGroupSectionProps {
     dropPositionGroup: 'before' | 'after' | null;
     theme: any;
     showNotes: (task: TaskItem) => void;
+    hideAssignees?: boolean;
 }
 
 export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
-                                                                      title,
-                                                                      groupId,
-                                                                      group,
-                                                                      tasks,
-                                                                      channelMembers,
-                                                                      onToggle,
-                                                                      onDelete,
-                                                                      onToggleAssignee,
-                                                                      onUpdateText,
-                                                                      onDeleteGroup,
-                                                                      onUpdateGroupName,
-                                                                      onDragStart,
-                                                                      onDragEnd,
-                                                                      onDrop,
-                                                                      onDragOverTask,
-                                                                      onDragLeaveTask,
-                                                                      onDropOnTask,
-                                                                      isDragging,
-                                                                      dragOverTaskId,
-                                                                      dragOverPosition,
-                                                                      onDragStartGroup,
-                                                                      onDragEndGroup,
-                                                                      onDragOverGroup,
-                                                                      onDragLeaveGroup,
-                                                                      onDropOnGroup,
-                                                                      isDraggingGroup,
-                                                                      isDropTargetGroup,
-                                                                      dropPositionGroup,
-                                                                      theme,
-                                                                      showNotes
+                                                                      title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText,
+                                                                      onDeleteGroup, onUpdateGroupName, onDragStart, onDragEnd, onDrop, onDragOverTask, onDragLeaveTask,
+                                                                      onDropOnTask, isDragging, dragOverTaskId, dragOverPosition, onDragStartGroup, onDragEndGroup,
+                                                                      onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup,
+                                                                      theme, showNotes, hideAssignees
                                                                   }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
@@ -85,9 +61,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     const dropZoneBg = adjustOpacity(buttonBg, centerChannelBg, 0.1);
 
     React.useEffect(() => {
-        if (!isDragging) {
-            setIsDragOver(false);
-        }
+        if (!isDragging) setIsDragOver(false);
     }, [isDragging]);
 
     React.useEffect(() => {
@@ -106,10 +80,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     const handleDragLeave = (e: React.DragEvent) => {
         const target = e.currentTarget as HTMLElement;
         const relatedTarget = e.relatedTarget as HTMLElement;
-
-        if (!relatedTarget || !target.contains(relatedTarget)) {
-            setIsDragOver(false);
-        }
+        if (!relatedTarget || !target.contains(relatedTarget)) setIsDragOver(false);
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -127,7 +98,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
         onDragStartGroup(group);
     };
 
-    const handleGroupDragEnd = (e: React.DragEvent) => {
+    const handleGroupDragEnd = () => {
         setIsDraggingThis(false);
         onDragEndGroup();
     };
@@ -139,12 +110,9 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
         }
         e.preventDefault();
         e.stopPropagation();
-
         const rect = e.currentTarget.getBoundingClientRect();
         const midpoint = rect.top + rect.height / 2;
-        const mouseY = e.clientY;
-
-        const position = mouseY < midpoint ? 'before' : 'after';
+        const position = e.clientY < midpoint ? 'before' : 'after';
         onDragOverGroup(group.id, position);
     };
 
@@ -152,17 +120,13 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
         if (!isDraggingGroup) return;
         const target = e.currentTarget as HTMLElement;
         const relatedTarget = e.relatedTarget as HTMLElement;
-
-        if (!relatedTarget || !target.contains(relatedTarget)) {
-            onDragLeaveGroup();
-        }
+        if (!relatedTarget || !target.contains(relatedTarget)) onDragLeaveGroup();
     };
 
     const handleGroupDrop = (e: React.DragEvent) => {
         if (!group || !isDraggingGroup) return;
         e.preventDefault();
         e.stopPropagation();
-
         if (!dropPositionGroup) return;
         onDropOnGroup(group, dropPositionGroup);
     };
@@ -187,24 +151,17 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     };
 
     const handleNameKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            handleSaveNameEdit();
-        } else if (e.key === 'Escape') {
-            handleCancelNameEdit();
-        }
+        if (e.key === 'Enter') handleSaveNameEdit();
+        else if (e.key === 'Escape') handleCancelNameEdit();
     };
 
     const isUngrouped = groupId === null;
     const hasContent = tasks.length > 0;
     const isCreatedGroup = onDeleteGroup !== undefined;
     const isFiltered = !hasContent && isCreatedGroup;
-
     const shouldShow = isCreatedGroup || hasContent || (isDragging && !isUngrouped) || (isDragging && isUngrouped);
 
-    if (isUngrouped && !hasContent && !isDragging) {
-        return null;
-    }
-
+    if (isUngrouped && !hasContent && !isDragging) return null;
     if (!shouldShow) return null;
 
     const showDropZone = isDragging && tasks.length === 0;
@@ -214,82 +171,30 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     const renderDeleteButton = () => {
         if (!onDeleteGroup) return null;
         return (
-            <button
-                onClick={onDeleteGroup}
-                style={{
-                    padding: '4px',
-                    fontSize: '12px',
-                    color: errorTextColor,
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    opacity: isHeaderHovered ? 1 : 0,
-                    transition: 'opacity 0.2s'
-                }}
-            >
+            <button onClick={onDeleteGroup} style={{
+                padding: '4px', fontSize: '12px', color: errorTextColor, backgroundColor: 'transparent',
+                border: 'none', cursor: 'pointer', opacity: isHeaderHovered ? 1 : 0, transition: 'opacity 0.2s'
+            }}>
                 Delete Group
             </button>
         );
     };
 
     const renderHeader = () => (
-        <div
-            style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: tasks.length > 0 ? '4px' : '0'
-            }}
-            onMouseEnter={() => setIsHeaderHovered(true)}
-            onMouseLeave={() => setIsHeaderHovered(false)}
-        >
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: tasks.length > 0 ? '4px' : '0'}}
+             onMouseEnter={() => setIsHeaderHovered(true)} onMouseLeave={() => setIsHeaderHovered(false)}>
             {isEditingName ? (
-                <input
-                    ref={nameInputRef}
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={handleNameKeyDown}
-                    onBlur={handleSaveNameEdit}
-                    style={{
-                        padding: '4px 8px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        border: `2px solid ${buttonBg}`,
-                        borderRadius: '3px',
-                        backgroundColor: centerChannelBg,
-                        color: centerChannelColor,
-                        outline: 'none'
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                />
+                <input ref={nameInputRef} type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                       onKeyDown={handleNameKeyDown} onBlur={handleSaveNameEdit} onClick={(e) => e.stopPropagation()}
+                       style={{padding: '4px 8px', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
+                           border: `2px solid ${buttonBg}`, borderRadius: '3px', backgroundColor: centerChannelBg, color: centerChannelColor, outline: 'none'}}/>
             ) : (
-                <h4
-                    onClick={handleNameClick}
-                    style={{
-                        margin: 0,
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        color: subtleText,
-                        letterSpacing: '0.5px',
-                        cursor: (group && onUpdateGroupName) ? 'text' : 'default',
-                        padding: '4px 8px',
-                        borderRadius: '3px',
-                        transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                        if (group && onUpdateGroupName) {
-                            e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
-                        }
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                    title={(group && onUpdateGroupName) ? 'Click to edit' : ''}
-                >
+                <h4 onClick={handleNameClick} style={{
+                    margin: 0, fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', color: subtleText, letterSpacing: '0.5px',
+                    cursor: (group && onUpdateGroupName) ? 'text' : 'default', padding: '4px 8px', borderRadius: '3px', transition: 'background-color 0.2s'
+                }} onMouseEnter={(e) => { if (group && onUpdateGroupName) e.currentTarget.style.backgroundColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.05); }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    title={(group && onUpdateGroupName) ? 'Click to edit' : ''}>
                     {title}
                 </h4>
             )}
@@ -301,52 +206,17 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
         return (
             <div style={{position: 'relative'}}>
                 {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '-4px',
-                        left: '0',
-                        right: '0',
-                        height: '3px',
-                        backgroundColor: dropIndicatorColor,
-                        borderRadius: '2px',
-                        zIndex: 10,
-                        boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                    }}/>
+                    <div style={{position: 'absolute', top: '-4px', left: '0', right: '0', height: '3px', backgroundColor: dropIndicatorColor, borderRadius: '2px', zIndex: 10, boxShadow: `0 0 4px -2px ${dropIndicatorColor}`}}/>
                 )}
-                <div
-                    draggable={!!group}
-                    onDragStart={handleGroupDragStart}
-                    onDragEnd={handleGroupDragEnd}
-                    onDragOver={handleGroupDragOver}
-                    onDragLeave={handleGroupDragLeave}
-                    onDrop={handleGroupDrop}
-                    style={{
-                        marginBottom: '0px',
-                        minHeight: '60px',
-                        borderRadius: '8px',
-                        padding: '8px',
-                        paddingBottom: '4px',
-                        border: isDraggingThis ? `2px dashed ${buttonBg}` : '2px solid transparent',
-                        opacity: isDraggingThis ? 0.4 : groupOpacity,
-                        position: 'relative',
-                        transition: 'all 0.2s ease',
-                        cursor: group ? 'grab' : 'default'
-                    }}
-                >
+                <div draggable={!!group} onDragStart={handleGroupDragStart} onDragEnd={handleGroupDragEnd}
+                     onDragOver={handleGroupDragOver} onDragLeave={handleGroupDragLeave} onDrop={handleGroupDrop}
+                     style={{marginBottom: '0px', minHeight: '60px', borderRadius: '8px', padding: '8px', paddingBottom: '4px',
+                         border: isDraggingThis ? `2px dashed ${buttonBg}` : '2px solid transparent',
+                         opacity: isDraggingThis ? 0.4 : groupOpacity, position: 'relative', transition: 'all 0.2s ease', cursor: group ? 'grab' : 'default'}}>
                     {renderHeader()}
                 </div>
                 {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'after' && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '4px',
-                        left: '0',
-                        right: '0',
-                        height: '3px',
-                        backgroundColor: dropIndicatorColor,
-                        borderRadius: '2px',
-                        zIndex: 10,
-                        boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                    }}/>
+                    <div style={{position: 'absolute', bottom: '4px', left: '0', right: '0', height: '3px', backgroundColor: dropIndicatorColor, borderRadius: '2px', zIndex: 10, boxShadow: `0 0 4px -2px ${dropIndicatorColor}`}}/>
                 )}
             </div>
         );
@@ -355,97 +225,33 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
     return (
         <div style={{position: 'relative'}}>
             {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
-                <div style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    left: '0',
-                    right: '0',
-                    height: '3px',
-                    backgroundColor: dropIndicatorColor,
-                    borderRadius: '2px',
-                    zIndex: 10,
-                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }}/>
+                <div style={{position: 'absolute', top: '-4px', left: '0', right: '0', height: '3px', backgroundColor: dropIndicatorColor, borderRadius: '2px', zIndex: 10, boxShadow: `0 0 4px -2px ${dropIndicatorColor}`}}/>
             )}
-            <div
-                draggable={!!group}
-                onDragStart={handleGroupDragStart}
-                onDragEnd={handleGroupDragEnd}
-                onDragOver={(e) => {
-                    handleDragOver(e);
-                    handleGroupDragOver(e);
-                }}
-                onDragLeave={(e) => {
-                    handleDragLeave(e);
-                    handleGroupDragLeave(e);
-                }}
-                onDrop={(e) => {
-                    handleDrop(e);
-                    handleGroupDrop(e);
-                }}
-                style={{
-                    marginBottom: '0px',
-                    minHeight: showDropZone ? '80px' : 'auto',
-                    backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
-                    border: isDraggingThis ? `2px dashed ${buttonBg}` : (isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none')),
-                    borderRadius: '8px',
-                    padding: '8px',
-                    paddingBottom: '4px',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    opacity: isDraggingThis ? 0.4 : groupOpacity,
-                    cursor: group ? 'grab' : 'default'
-                }}
-            >
+            <div draggable={!!group} onDragStart={handleGroupDragStart} onDragEnd={handleGroupDragEnd}
+                 onDragOver={(e) => { handleDragOver(e); handleGroupDragOver(e); }}
+                 onDragLeave={(e) => { handleDragLeave(e); handleGroupDragLeave(e); }}
+                 onDrop={(e) => { handleDrop(e); handleGroupDrop(e); }}
+                 style={{marginBottom: '0px', minHeight: showDropZone ? '80px' : 'auto',
+                     backgroundColor: isDragOver ? dropZoneBg : (showDropZone ? adjustOpacity(centerChannelColor, centerChannelBg, 0.02) : 'transparent'),
+                     border: isDraggingThis ? `2px dashed ${buttonBg}` : (isDragOver ? `2px dashed ${buttonBg}` : (showDropZone ? `2px dashed ${borderColor}` : 'none')),
+                     borderRadius: '8px', padding: '8px', paddingBottom: '4px', transition: 'all 0.2s ease', position: 'relative',
+                     opacity: isDraggingThis ? 0.4 : groupOpacity, cursor: group ? 'grab' : 'default'}}>
                 {renderHeader()}
-
                 {showDropZone && (
-                    <div style={{
-                        padding: '24px',
-                        textAlign: 'center',
-                        color: isDragOver ? buttonBg : subtleText,
-                        fontSize: '13px',
-                        fontStyle: 'italic',
-                        fontWeight: isDragOver ? 600 : 400
-                    }}>
+                    <div style={{padding: '24px', textAlign: 'center', color: isDragOver ? buttonBg : subtleText, fontSize: '13px', fontStyle: 'italic', fontWeight: isDragOver ? 600 : 400}}>
                         {isDragOver ? `Drop to move to ${title}` : `Drag items here to move to ${title}`}
                     </div>
                 )}
-
                 {tasks.map(task => (
-                    <TaskItemComponent
-                        key={task.id}
-                        task={task}
-                        channelMembers={channelMembers}
-                        onToggle={onToggle}
-                        onDelete={onDelete}
-                        onToggleAssignee={onToggleAssignee}
-                        onUpdateText={onUpdateText}
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                        onDragOverTask={onDragOverTask}
-                        onDragLeaveTask={onDragLeaveTask}
-                        onDropOnTask={onDropOnTask}
-                        isDraggingItem={isDragging}
-                        isDropTarget={dragOverTaskId === task.id}
-                        dropPosition={dragOverTaskId === task.id ? dragOverPosition : null}
-                        theme={theme}
-                        showNotes={showNotes}
-                    />
+                    <TaskItemComponent key={task.id} task={task} channelMembers={channelMembers} onToggle={onToggle} onDelete={onDelete}
+                                       onToggleAssignee={onToggleAssignee} onUpdateText={onUpdateText} onDragStart={onDragStart} onDragEnd={onDragEnd}
+                                       onDragOverTask={onDragOverTask} onDragLeaveTask={onDragLeaveTask} onDropOnTask={onDropOnTask}
+                                       isDraggingItem={isDragging} isDropTarget={dragOverTaskId === task.id}
+                                       dropPosition={dragOverTaskId === task.id ? dragOverPosition : null} theme={theme} showNotes={showNotes} hideAssignees={hideAssignees}/>
                 ))}
             </div>
             {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'after' && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: '-4px',
-                    left: '0',
-                    right: '0',
-                    height: '3px',
-                    backgroundColor: dropIndicatorColor,
-                    borderRadius: '2px',
-                    zIndex: 10,
-                    boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }}/>
+                <div style={{position: 'absolute', bottom: '-4px', left: '0', right: '0', height: '3px', backgroundColor: dropIndicatorColor, borderRadius: '2px', zIndex: 10, boxShadow: `0 0 4px -2px ${dropIndicatorColor}`}}/>
             )}
         </div>
     );

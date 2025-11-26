@@ -59,6 +59,7 @@ type TaskWithContext struct {
 	GroupName   string
 	ChannelID   string
 	ChannelName string
+	IsPrivate   bool
 }
 
 func (p *Plugin) OnActivate() error {
@@ -241,12 +242,20 @@ func (p *Plugin) checkAndSendDailyMessage(userID string) {
 }
 
 func (p *Plugin) sendDailyTaskSummary(userID string) {
-	tasks := p.getTasksAssignedToUser(userID)
-	if len(tasks) == 0 {
+	// Get channel tasks assigned to user
+	channelTasks := p.getTasksAssignedToUser(userID)
+
+	// Get private tasks with deadlines
+	privateTasks := p.getPrivateTasksWithDeadlines(userID)
+
+	// Combine all tasks
+	allTasks := append(channelTasks, privateTasks...)
+
+	if len(allTasks) == 0 {
 		return
 	}
 
-	todayTasks, weekTasks, otherTasks := p.categorizeTasks(tasks)
+	todayTasks, weekTasks, otherTasks := p.categorizeTasks(allTasks)
 
 	var sb strings.Builder
 	sb.WriteString("### Your Daily Task Summary\n\n\n")
@@ -322,11 +331,56 @@ func (p *Plugin) getTasksAssignedToUser(userID string) []TaskWithContext {
 						GroupName:   groupName,
 						ChannelID:   channel.Id,
 						ChannelName: channel.DisplayName,
+						IsPrivate:   false,
 					})
 					break
 				}
 			}
 		}
+	}
+
+	return result
+}
+
+func (p *Plugin) getPrivateTasksWithDeadlines(userID string) []TaskWithContext {
+	var result []TaskWithContext
+
+	key := p.privateTasksKey(userID)
+	data, appErr := p.API.KVGet(key)
+	if appErr != nil || data == nil {
+		return result
+	}
+
+	var taskList ChannelTaskList
+	if err := json.Unmarshal(data, &taskList); err != nil {
+		return result
+	}
+
+	groupMap := make(map[string]string)
+	for _, g := range taskList.Groups {
+		groupMap[g.ID] = g.Name
+	}
+
+	for _, task := range taskList.Items {
+		// Only include incomplete private tasks that have a deadline
+		if task.Completed || task.Deadline == nil {
+			continue
+		}
+
+		groupName := "Ungrouped"
+		if task.GroupID != "" {
+			if name, ok := groupMap[task.GroupID]; ok {
+				groupName = name
+			}
+		}
+
+		result = append(result, TaskWithContext{
+			Task:        task,
+			GroupName:   groupName,
+			ChannelID:   "",
+			ChannelName: "Private Tasks",
+			IsPrivate:   true,
+		})
 	}
 
 	return result
@@ -356,6 +410,10 @@ func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (today, week, other []
 
 	sortTasks := func(tasks []TaskWithContext) {
 		sort.Slice(tasks, func(i, j int) bool {
+			// Sort private tasks after channel tasks within same deadline category
+			if tasks[i].IsPrivate != tasks[j].IsPrivate {
+				return !tasks[i].IsPrivate
+			}
 			if tasks[i].ChannelName != tasks[j].ChannelName {
 				return tasks[i].ChannelName < tasks[j].ChannelName
 			}
@@ -387,7 +445,11 @@ func (p *Plugin) writeTaskList(sb *strings.Builder, tasks []TaskWithContext) {
 		if t.Task.Deadline != nil {
 			deadlineStr = fmt.Sprintf(" _(due %s)_", t.Task.Deadline.Format("Jan 2"))
 		}
-		sb.WriteString(fmt.Sprintf("- **%s**: %s%s\n", t.ChannelName, t.Task.Text, deadlineStr))
+		if t.IsPrivate {
+			sb.WriteString(fmt.Sprintf("- **🔒 Private**: %s%s\n", t.Task.Text, deadlineStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("- **%s**: %s%s\n", t.ChannelName, t.Task.Text, deadlineStr))
+		}
 	}
 }
 
@@ -399,6 +461,10 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 		p.handleGroups(w, r)
 	case "/api/v1/activity":
 		p.handleActivity(w, r)
+	case "/api/v1/private/tasks":
+		p.handlePrivateTasks(w, r)
+	case "/api/v1/private/groups":
+		p.handlePrivateGroups(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -460,6 +526,253 @@ func (p *Plugin) handleGroups(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Private Tasks Handlers
+func (p *Plugin) handlePrivateTasks(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		userID = r.Header.Get("Mattermost-User-Id")
+	}
+	if userID == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		p.getPrivateTasks(w, userID)
+	case http.MethodPost:
+		p.createPrivateTask(w, r, userID)
+	case http.MethodPut:
+		p.updatePrivateTask(w, r, userID)
+	case http.MethodDelete:
+		taskID := r.URL.Query().Get("id")
+		p.deletePrivateTask(w, userID, taskID)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (p *Plugin) handlePrivateGroups(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		userID = r.Header.Get("Mattermost-User-Id")
+	}
+	if userID == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPost:
+		p.createPrivateGroup(w, r, userID)
+	case http.MethodPut:
+		p.updatePrivateGroup(w, r, userID)
+	case http.MethodDelete:
+		groupID := r.URL.Query().Get("id")
+		p.deletePrivateGroup(w, userID, groupID)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// Private task storage key
+func (p *Plugin) privateTasksKey(userID string) string {
+	return fmt.Sprintf("private_tasks_%s", userID)
+}
+
+func (p *Plugin) getPrivateTasks(w http.ResponseWriter, userID string) {
+	key := p.privateTasksKey(userID)
+	data, appErr := p.API.KVGet(key)
+	if appErr != nil {
+		http.Error(w, appErr.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+	if taskList.Items == nil {
+		taskList.Items = []TaskItem{}
+	}
+	if taskList.Groups == nil {
+		taskList.Groups = []TaskGroup{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(taskList)
+}
+
+func (p *Plugin) createPrivateTask(w http.ResponseWriter, r *http.Request, userID string) {
+	var task TaskItem
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	task.ID = model.NewId()
+	task.CreatedAt = time.Now()
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	taskList.Items = append(taskList.Items, task)
+	taskList.HasEverHadTasks = true
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
+}
+
+func (p *Plugin) updatePrivateTask(w http.ResponseWriter, r *http.Request, userID string) {
+	var updatedTask TaskItem
+	if err := json.NewDecoder(r.Body).Decode(&updatedTask); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	for i, task := range taskList.Items {
+		if task.ID == updatedTask.ID {
+			if updatedTask.Completed && !task.Completed {
+				updatedTask.CompletedAt = time.Now()
+			}
+			taskList.Items[i] = updatedTask
+			break
+		}
+	}
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedTask)
+}
+
+func (p *Plugin) deletePrivateTask(w http.ResponseWriter, userID, taskID string) {
+	if taskID == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	for i, task := range taskList.Items {
+		if task.ID == taskID {
+			taskList.Items = append(taskList.Items[:i], taskList.Items[i+1:]...)
+			break
+		}
+	}
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (p *Plugin) createPrivateGroup(w http.ResponseWriter, r *http.Request, userID string) {
+	var group TaskGroup
+	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	group.ID = model.NewId()
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	taskList.Groups = append(taskList.Groups, group)
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(group)
+}
+
+func (p *Plugin) updatePrivateGroup(w http.ResponseWriter, r *http.Request, userID string) {
+	var updatedGroup TaskGroup
+	if err := json.NewDecoder(r.Body).Decode(&updatedGroup); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	for i, group := range taskList.Groups {
+		if group.ID == updatedGroup.ID {
+			taskList.Groups[i] = updatedGroup
+			break
+		}
+	}
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedGroup)
+}
+
+func (p *Plugin) deletePrivateGroup(w http.ResponseWriter, userID, groupID string) {
+	if groupID == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	key := p.privateTasksKey(userID)
+	data, _ := p.API.KVGet(key)
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	for i, group := range taskList.Groups {
+		if group.ID == groupID {
+			taskList.Groups = append(taskList.Groups[:i], taskList.Groups[i+1:]...)
+			// Also ungroup any tasks in this group
+			for j := range taskList.Items {
+				if taskList.Items[j].GroupID == groupID {
+					taskList.Items[j].GroupID = ""
+				}
+			}
+			break
+		}
+	}
+
+	newData, _ := json.Marshal(taskList)
+	p.API.KVSet(key, newData)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Channel task methods
 func (p *Plugin) getTasks(w http.ResponseWriter, r *http.Request, channelID string) {
 	userID := r.Header.Get("Mattermost-User-Id")
 	if userID != "" {

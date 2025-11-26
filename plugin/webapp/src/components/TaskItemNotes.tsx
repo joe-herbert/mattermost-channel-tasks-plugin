@@ -14,11 +14,11 @@ interface TaskItemNotesProps {
 
 export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes, updateTaskNotes, bg, subtleBackground, buttonBg, buttonColor, borderColor}) => {
     const [editing, setEditing] = React.useState(!task.notes);
-    const [notes, setNotes] = React.useState(task.notes);
+    const [notes, setNotes] = React.useState(task.notes || '');
 
     React.useEffect(() => {
         setEditing(false);
-        setNotes(task.notes);
+        setNotes(task.notes || '');
     }, [task]);
 
     const startEdit = () => {
@@ -27,7 +27,7 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
 
     const cancelEdit = () => {
         setEditing(false);
-        setNotes(task.notes);
+        setNotes(task.notes || '');
     };
 
     const saveEdit = () => {
