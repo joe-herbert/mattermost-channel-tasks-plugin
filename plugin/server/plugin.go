@@ -69,28 +69,44 @@ func (p *Plugin) OnActivate() error {
 	}
 	p.botUserID = botUserID
 
-	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "tasks-message-on",
-		AutoComplete:     true,
-		AutoCompleteDesc: "Enable daily task reminders",
-	}); err != nil {
-		return fmt.Errorf("failed to register tasks-message-on command: %w", err)
+	// Daily message commands
+	commands := []struct {
+		Trigger string
+		Desc    string
+	}{
+		{"tasks-message-on", "Enable daily task reminders"},
+		{"tasks-message-off", "Disable daily task reminders"},
+		{"tasks-message-reset", "Reset daily task reminder"},
+		// Channel task commands
+		{"tasks", "Show all tasks in this channel"},
+		{"tasks-mine", "Show tasks assigned to me in this channel"},
+		{"tasks-today", "Show tasks due today in this channel"},
+		{"tasks-incomplete", "Show incomplete tasks in this channel"},
+		{"tasks-complete", "Show completed tasks in this channel"},
+		{"tasks-todo", "Show which tasks to focus on next in this channel (incomplete, assigned to me, prioritized by deadline)"},
+		// Private task commands
+		{"tasks-private", "Show all private tasks"},
+		{"tasks-private-today", "Show private tasks due today"},
+		{"tasks-private-incomplete", "Show incomplete private tasks"},
+		{"tasks-private-complete", "Show completed private tasks"},
+		{"tasks-private-todo", "Show which private tasks to focus on next (incomplete, prioritized by deadline)"},
+		// Aliases - Channel task commands
+		{"t", "Show all tasks in this channel (alias for /tasks)"},
+		{"tmine", "Show tasks assigned to me in this channel (alias for /tasks-mine)"},
+		{"ttodo", "Show which tasks to focus on next in this channel (alias for /tasks-todo)"},
+		// Aliases - Private task commands
+		{"tp", "Show all private tasks (alias for /tasks-private)"},
+		{"tptodo", "Show which private tasks to focus on next (alias for /tasks-private-todo)"},
 	}
 
-	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "tasks-message-off",
-		AutoComplete:     true,
-		AutoCompleteDesc: "Disable daily task reminders",
-	}); err != nil {
-		return fmt.Errorf("failed to register tasks-message-off command: %w", err)
-	}
-
-	if err := p.API.RegisterCommand(&model.Command{
-		Trigger:          "tasks-message-reset",
-		AutoComplete:     true,
-		AutoCompleteDesc: "Reset daily task reminder",
-	}); err != nil {
-		return fmt.Errorf("failed to register tasks-message-reset command: %w", err)
+	for _, cmd := range commands {
+		if err := p.API.RegisterCommand(&model.Command{
+			Trigger:          cmd.Trigger,
+			AutoComplete:     true,
+			AutoCompleteDesc: cmd.Desc,
+		}); err != nil {
+			return fmt.Errorf("failed to register %s command: %w", cmd.Trigger, err)
+		}
 	}
 
 	return nil
@@ -152,6 +168,30 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		return p.handleDailyTasksOff(args)
 	case "tasks-message-reset":
 		return p.handleDailyTasksReset(args)
+		// Channel task commands
+	case "tasks", "t":
+		return p.handleTasksCommand(args, "all")
+	case "tasks-mine", "tmine":
+		return p.handleTasksCommand(args, "mine")
+	case "tasks-today":
+		return p.handleTasksCommand(args, "today")
+	case "tasks-incomplete":
+		return p.handleTasksCommand(args, "incomplete")
+	case "tasks-complete":
+		return p.handleTasksCommand(args, "complete")
+	case "tasks-todo", "ttodo":
+		return p.handleTasksCommand(args, "todo")
+		// Private task commands
+	case "tasks-private", "tp":
+		return p.handlePrivateTasksCommand(args, "all")
+	case "tasks-private-today":
+		return p.handlePrivateTasksCommand(args, "today")
+	case "tasks-private-incomplete":
+		return p.handlePrivateTasksCommand(args, "incomplete")
+	case "tasks-private-complete":
+		return p.handlePrivateTasksCommand(args, "complete")
+	case "tasks-private-todo", "tptodo":
+		return p.handlePrivateTasksCommand(args, "todo")
 	}
 	return &model.CommandResponse{}, nil
 }
@@ -188,6 +228,366 @@ func (p *Plugin) handleDailyTasksReset(args *model.CommandArgs) (*model.CommandR
 		ResponseType: model.CommandResponseTypeEphemeral,
 		Text:         "🔄 Daily task reminder has been **reset**. You will receive a new summary on your next action.",
 	}, nil
+}
+
+func (p *Plugin) handleTasksCommand(args *model.CommandArgs, filter string) (*model.CommandResponse, *model.AppError) {
+	list := p.getChannelTaskList(args.ChannelId)
+
+	// Get channel name for display
+	channel, chErr := p.API.GetChannel(args.ChannelId)
+	channelName := "This Channel"
+	if chErr == nil && channel != nil {
+		channelName = channel.DisplayName
+	}
+
+	if len(list.Items) == 0 {
+		return &model.CommandResponse{
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         fmt.Sprintf("📋 No tasks in **%s**.", channelName),
+		}, nil
+	}
+
+	groupMap := make(map[string]string)
+	for _, g := range list.Groups {
+		groupMap[g.ID] = g.Name
+	}
+
+	var filtered []TaskItem
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.Add(24 * time.Hour)
+	weekEnd := todayStart.Add(7 * 24 * time.Hour)
+
+	switch filter {
+	case "all":
+		filtered = list.Items
+	case "mine":
+		for _, t := range list.Items {
+			for _, aid := range t.AssigneeIDs {
+				if aid == args.UserId {
+					filtered = append(filtered, t)
+					break
+				}
+			}
+		}
+	case "today":
+		for _, t := range list.Items {
+			if t.Deadline != nil && t.Deadline.Before(todayEnd) && !t.Deadline.Before(todayStart) {
+				filtered = append(filtered, t)
+			}
+		}
+	case "incomplete":
+		for _, t := range list.Items {
+			if !t.Completed {
+				filtered = append(filtered, t)
+			}
+		}
+	case "complete":
+		for _, t := range list.Items {
+			if t.Completed {
+				filtered = append(filtered, t)
+			}
+		}
+	case "todo":
+		// Get tasks assigned to me that are incomplete
+		var myIncomplete []TaskItem
+		for _, t := range list.Items {
+			if t.Completed {
+				continue
+			}
+			for _, aid := range t.AssigneeIDs {
+				if aid == args.UserId {
+					myIncomplete = append(myIncomplete, t)
+					break
+				}
+			}
+		}
+		// Prioritize: today first, then within week, then others
+		var todayTasks, weekTasks, otherTasks []TaskItem
+		for _, t := range myIncomplete {
+			if t.Deadline == nil {
+				otherTasks = append(otherTasks, t)
+			} else if t.Deadline.Before(todayEnd) {
+				todayTasks = append(todayTasks, t)
+			} else if t.Deadline.Before(weekEnd) {
+				weekTasks = append(weekTasks, t)
+			} else {
+				otherTasks = append(otherTasks, t)
+			}
+		}
+		// Show today if any, else week if any, else all
+		if len(todayTasks) > 0 {
+			filtered = todayTasks
+		} else if len(weekTasks) > 0 {
+			filtered = weekTasks
+		} else {
+			filtered = myIncomplete
+		}
+	}
+
+	if len(filtered) == 0 {
+		emptyMsg := p.getEmptyFilterMessage(filter, channelName, false)
+		return &model.CommandResponse{
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         emptyMsg,
+		}, nil
+	}
+
+	// Sort by deadline then by text
+	sort.Slice(filtered, func(i, j int) bool {
+		di, dj := filtered[i].Deadline, filtered[j].Deadline
+		if di != nil && dj != nil {
+			if !di.Equal(*dj) {
+				return di.Before(*dj)
+			}
+		} else if di != nil {
+			return true
+		} else if dj != nil {
+			return false
+		}
+		return filtered[i].Text < filtered[j].Text
+	})
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("### %s Tasks (%s)\n\n", channelName, p.filterLabel(filter)))
+
+	for _, t := range filtered {
+		statusIcon := p.getTaskStatusIcon(t, todayEnd, weekEnd)
+		deadlineStr := p.formatDeadline(t.Deadline)
+		groupStr := ""
+		if t.GroupID != "" {
+			if name, ok := groupMap[t.GroupID]; ok {
+				groupStr = fmt.Sprintf(" | **%s**", name)
+			}
+		}
+		if deadlineStr != "" {
+			deadlineStr = " |" + deadlineStr
+		}
+		sb.WriteString(fmt.Sprintf("- %s %s%s%s\n", statusIcon, t.Text, groupStr, deadlineStr))
+	}
+
+	return &model.CommandResponse{
+		ResponseType: model.CommandResponseTypeEphemeral,
+		Text:         sb.String(),
+	}, nil
+}
+
+func (p *Plugin) handlePrivateTasksCommand(args *model.CommandArgs, filter string) (*model.CommandResponse, *model.AppError) {
+	key := p.privateTasksKey(args.UserId)
+	data, appErr := p.API.KVGet(key)
+	if appErr != nil {
+		return &model.CommandResponse{
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         "❌ Error loading private tasks.",
+		}, nil
+	}
+
+	taskList := ChannelTaskList{Items: []TaskItem{}, Groups: []TaskGroup{}}
+	if data != nil {
+		json.Unmarshal(data, &taskList)
+	}
+
+	if len(taskList.Items) == 0 {
+		return &model.CommandResponse{
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         "🔒 No private tasks yet. Use the task sidebar to add some!",
+		}, nil
+	}
+
+	groupMap := make(map[string]string)
+	for _, g := range taskList.Groups {
+		groupMap[g.ID] = g.Name
+	}
+
+	var filtered []TaskItem
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.Add(24 * time.Hour)
+	weekEnd := todayStart.Add(7 * 24 * time.Hour)
+
+	switch filter {
+	case "all":
+		filtered = taskList.Items
+	case "today":
+		for _, t := range taskList.Items {
+			if t.Deadline != nil && t.Deadline.Before(todayEnd) && !t.Deadline.Before(todayStart) {
+				filtered = append(filtered, t)
+			}
+		}
+	case "incomplete":
+		for _, t := range taskList.Items {
+			if !t.Completed {
+				filtered = append(filtered, t)
+			}
+		}
+	case "complete":
+		for _, t := range taskList.Items {
+			if t.Completed {
+				filtered = append(filtered, t)
+			}
+		}
+	case "todo":
+		// Get incomplete tasks, prioritize by deadline
+		var incomplete []TaskItem
+		for _, t := range taskList.Items {
+			if !t.Completed {
+				incomplete = append(incomplete, t)
+			}
+		}
+		var todayTasks, weekTasks, otherTasks []TaskItem
+		for _, t := range incomplete {
+			if t.Deadline == nil {
+				otherTasks = append(otherTasks, t)
+			} else if t.Deadline.Before(todayEnd) {
+				todayTasks = append(todayTasks, t)
+			} else if t.Deadline.Before(weekEnd) {
+				weekTasks = append(weekTasks, t)
+			} else {
+				otherTasks = append(otherTasks, t)
+			}
+		}
+		if len(todayTasks) > 0 {
+			filtered = todayTasks
+		} else if len(weekTasks) > 0 {
+			filtered = weekTasks
+		} else {
+			filtered = incomplete
+		}
+	}
+
+	if len(filtered) == 0 {
+		emptyMsg := p.getEmptyFilterMessage(filter, "", true)
+		return &model.CommandResponse{
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         emptyMsg,
+		}, nil
+	}
+
+	// Sort by deadline then by text
+	sort.Slice(filtered, func(i, j int) bool {
+		di, dj := filtered[i].Deadline, filtered[j].Deadline
+		if di != nil && dj != nil {
+			if !di.Equal(*dj) {
+				return di.Before(*dj)
+			}
+		} else if di != nil {
+			return true
+		} else if dj != nil {
+			return false
+		}
+		return filtered[i].Text < filtered[j].Text
+	})
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("### 🔒 Private Tasks (%s)\n\n", p.filterLabel(filter)))
+
+	for _, t := range filtered {
+		statusIcon := p.getTaskStatusIcon(t, todayEnd, weekEnd)
+		deadlineStr := p.formatDeadline(t.Deadline)
+		groupStr := ""
+		if t.GroupID != "" {
+			if name, ok := groupMap[t.GroupID]; ok {
+				groupStr = fmt.Sprintf(" | **%s**", name)
+			}
+		}
+		if deadlineStr != "" {
+			deadlineStr = " |" + deadlineStr
+		}
+		sb.WriteString(fmt.Sprintf("- %s %s%s%s\n", statusIcon, t.Text, groupStr, deadlineStr))
+	}
+
+	return &model.CommandResponse{
+		ResponseType: model.CommandResponseTypeEphemeral,
+		Text:         sb.String(),
+	}, nil
+}
+
+func (p *Plugin) filterLabel(filter string) string {
+	switch filter {
+	case "all":
+		return "All"
+	case "mine":
+		return "Assigned to Me"
+	case "today":
+		return "Due Today"
+	case "incomplete":
+		return "Incomplete"
+	case "complete":
+		return "Complete"
+	case "todo":
+		return "To Do"
+	default:
+		return filter
+	}
+}
+
+func (p *Plugin) getTaskStatusIcon(task TaskItem, todayEnd, weekEnd time.Time) string {
+	if task.Completed {
+		return "🟩"
+	}
+	if task.Deadline == nil {
+		return "⬜"
+	}
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	if task.Deadline.Before(todayStart) {
+		return "🟥" // Overdue
+	}
+	if task.Deadline.Before(todayEnd) {
+		return "🟧" // Due today
+	}
+	if task.Deadline.Before(weekEnd) {
+		return "🟧" // Due within a week
+	}
+	return "⬜" // No urgent deadline
+}
+
+func (p *Plugin) formatDeadline(deadline *time.Time) string {
+	if deadline == nil {
+		return ""
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	tomorrowStart := todayStart.Add(24 * time.Hour)
+	dayAfterTomorrow := todayStart.Add(48 * time.Hour)
+
+	if deadline.Before(todayStart) {
+		// Overdue - show the date
+		return fmt.Sprintf(" _due %s_", deadline.Format("Mon Jan 2"))
+	} else if deadline.Before(tomorrowStart) {
+		return " _due Today_"
+	} else if deadline.Before(dayAfterTomorrow) {
+		return " _due Tomorrow_"
+	}
+	return fmt.Sprintf(" _due %s_", deadline.Format("Mon Jan 2"))
+}
+
+func (p *Plugin) getEmptyFilterMessage(filter, channelName string, isPrivate bool) string {
+	prefix := "📋"
+	location := fmt.Sprintf("in **%s**", channelName)
+	if isPrivate {
+		prefix = "🔒"
+		location = "in your private tasks"
+	}
+
+	switch filter {
+	case "mine":
+		return fmt.Sprintf("%s No tasks assigned to you %s.", prefix, location)
+	case "today":
+		return fmt.Sprintf("%s No tasks due today %s. 🎉", prefix, location)
+	case "incomplete":
+		return fmt.Sprintf("%s All tasks are complete %s! 🎉", prefix, location)
+	case "complete":
+		return fmt.Sprintf("%s No completed tasks %s yet.", prefix, location)
+	case "todo":
+		if isPrivate {
+			return fmt.Sprintf("%s Nothing on your private to-do list! 🎉", prefix)
+		}
+		return fmt.Sprintf("%s Nothing on your to-do list %s! 🎉", prefix, location)
+	default:
+		return fmt.Sprintf("%s No tasks match this filter %s.", prefix, location)
+	}
 }
 
 func (p *Plugin) getUserDailyPrefs(userID string) *UserDailyPrefs {
@@ -443,10 +843,10 @@ func (p *Plugin) writeTaskList(sb *strings.Builder, tasks []TaskWithContext) {
 	for _, t := range tasks {
 		deadlineStr := ""
 		if t.Task.Deadline != nil {
-			deadlineStr = fmt.Sprintf(" _(due %s)_", t.Task.Deadline.Format("Jan 2"))
+			deadlineStr = fmt.Sprintf(" | _due %s_", t.Task.Deadline.Format("Mon Jan 2"))
 		}
 		if t.IsPrivate {
-			sb.WriteString(fmt.Sprintf("- **🔒 Private**: %s%s\n", t.Task.Text, deadlineStr))
+			sb.WriteString(fmt.Sprintf("- **Private**: %s%s\n", t.Task.Text, deadlineStr))
 		} else {
 			sb.WriteString(fmt.Sprintf("- **%s**: %s%s\n", t.ChannelName, t.Task.Text, deadlineStr))
 		}
