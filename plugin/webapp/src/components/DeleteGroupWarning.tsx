@@ -1,5 +1,5 @@
 import React from 'react';
-import { adjustOpacity } from '../utils';
+import {adjustOpacity} from '../utils';
 
 interface DeleteGroupWarningProps {
     groupName: string;
@@ -9,7 +9,7 @@ interface DeleteGroupWarningProps {
     theme: any;
 }
 
-export const DeleteGroupWarning: React.FC<DeleteGroupWarningProps> = ({ groupName, taskCount, onConfirm, onCancel, theme }) => {
+export const DeleteGroupWarning: React.FC<DeleteGroupWarningProps> = ({groupName, taskCount, onConfirm, onCancel, theme}) => {
     const [dontWarnAgain, setDontWarnAgain] = React.useState(false);
 
     const centerChannelBg = theme?.centerChannelBg || '#ffffff';

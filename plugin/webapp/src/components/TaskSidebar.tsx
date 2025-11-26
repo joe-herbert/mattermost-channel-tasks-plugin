@@ -1,8 +1,8 @@
 import React from 'react';
-import { TaskItem, TaskGroup, ChannelTaskList } from '../types';
-import { adjustOpacity } from '../utils';
-import { TaskGroupSection } from './TaskGroupSection';
-import { DeleteGroupWarning } from './DeleteGroupWarning';
+import {ChannelTaskList, TaskGroup, TaskItem} from '../types';
+import {adjustOpacity} from '../utils';
+import {TaskGroupSection} from './TaskGroupSection';
+import {DeleteGroupWarning} from './DeleteGroupWarning';
 
 interface TaskSidebarProps {
     channelId?: string;
@@ -66,7 +66,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
         if (prevChannelId && currentChannelId && prevChannelId !== currentChannelId) {
             console.log('Channel changed via props from', prevChannelId, 'to', currentChannelId);
-            this.setState({ _lastChannelId: currentChannelId });
+            this.setState({_lastChannelId: currentChannelId});
             this.loadTasks();
             this.loadChannelMembers();
         }
@@ -113,7 +113,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             const response = await fetch('/api/v4/users/me');
             const user = await response.json();
-            this.setState({ currentUserId: user.id });
+            this.setState({currentUserId: user.id});
         } catch (error) {
             console.error('Error loading current user:', error);
         }
@@ -127,7 +127,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`);
             const data: ChannelTaskList = await response.json();
-            this.setState({ tasks: data.items, groups: data.groups });
+            this.setState({tasks: data.items, groups: data.groups});
         } catch (error) {
             console.error('Error loading tasks:', error);
         }
@@ -145,14 +145,14 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                 fetch(`/api/v4/users/${m.user_id}`).then(r => r.json())
             );
             const users = await Promise.all(usersPromises);
-            this.setState({ channelMembers: users });
+            this.setState({channelMembers: users});
         } catch (error) {
             console.error('Error loading channel members:', error);
         }
     };
 
     addTask = async () => {
-        const { newTaskText, selectedGroup, newTaskDeadline } = this.state;
+        const {newTaskText, selectedGroup, newTaskDeadline} = this.state;
         const channelId = this.getChannelId();
         console.log('Adding task:', newTaskText, 'for channel:', channelId);
         if (!newTaskText.trim() || !channelId) return;
@@ -171,7 +171,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(taskData)
             });
 
@@ -197,7 +197,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...task,
                     completed: !task.completed
@@ -216,7 +216,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...task,
                     text: newText
@@ -258,7 +258,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...task,
                     assignee_ids: newAssignees
@@ -271,7 +271,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     addGroup = async () => {
-        const { newGroupName } = this.state;
+        const {newGroupName} = this.state;
         const channelId = this.getChannelId();
         console.log('Adding group:', newGroupName, 'for channel:', channelId);
         if (!newGroupName.trim() || !channelId) return;
@@ -280,12 +280,12 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             console.log('Sending POST request to add group');
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newGroupName })
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: newGroupName})
             });
             console.log('Add group response:', response.status, response.ok);
             if (response.ok) {
-                this.setState({ newGroupName: '' });
+                this.setState({newGroupName: ''});
                 this.loadTasks();
             } else {
                 console.error('Failed to add group:', await response.text());
@@ -309,7 +309,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         } else {
             this.setState({
                 deleteGroupWarningShown: true,
-                groupToDelete: { id: groupId, name: group.name, taskCount }
+                groupToDelete: {id: groupId, name: group.name, taskCount}
             });
         }
     };
@@ -332,7 +332,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                 method: 'DELETE'
             });
 
-            this.setState({ deleteGroupWarningShown: false, groupToDelete: null });
+            this.setState({deleteGroupWarningShown: false, groupToDelete: null});
             this.loadTasks();
         } catch (error) {
             console.error('Error deleting group:', error);
@@ -340,7 +340,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     cancelDeleteGroup = () => {
-        this.setState({ deleteGroupWarningShown: false, groupToDelete: null });
+        this.setState({deleteGroupWarningShown: false, groupToDelete: null});
     };
 
     deleteGroupWithPreference = (dontWarnAgain: boolean) => {
@@ -359,7 +359,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...group,
                     name: newName
@@ -374,7 +374,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     handleDragStart = (task: TaskItem) => {
         console.log('Parent: handleDragStart called for task:', task.text);
         setTimeout(() => {
-            this.setState({ draggedTask: task });
+            this.setState({draggedTask: task});
         }, 0);
     };
 
@@ -405,10 +405,10 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDropOnTask = async (targetTask: TaskItem, position: 'before' | 'after') => {
-        const { draggedTask } = this.state;
+        const {draggedTask} = this.state;
         const channelId = this.getChannelId();
 
-        console.log('handleDropOnTask called:', { draggedTask, targetTask, position, channelId });
+        console.log('handleDropOnTask called:', {draggedTask, targetTask, position, channelId});
 
         if (!draggedTask || !channelId || draggedTask.id === targetTask.id) {
             this.setState({
@@ -450,7 +450,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...draggedTask,
                     group_id: targetGroupId || undefined,
@@ -480,10 +480,10 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDrop = async (targetGroupId: string | null) => {
-        const { draggedTask } = this.state;
+        const {draggedTask} = this.state;
         const channelId = this.getChannelId();
 
-        console.log('handleDrop called:', { draggedTask, targetGroupId, channelId });
+        console.log('handleDrop called:', {draggedTask, targetGroupId, channelId});
 
         if (!draggedTask || !channelId) {
             console.log('No dragged task or channel ID');
@@ -493,7 +493,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         const currentGroupId = draggedTask.group_id || null;
         if (currentGroupId === targetGroupId) {
             console.log('Same group, no update needed');
-            this.setState({ draggedTask: null });
+            this.setState({draggedTask: null});
             return;
         }
 
@@ -502,7 +502,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         try {
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...draggedTask,
                     group_id: targetGroupId || undefined
@@ -511,21 +511,21 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
             if (response.ok) {
                 console.log('Task updated successfully');
-                this.setState({ draggedTask: null });
+                this.setState({draggedTask: null});
                 this.loadTasks();
             } else {
                 console.error('Failed to update task:', response.status);
             }
         } catch (error) {
             console.error('Error moving task:', error);
-            this.setState({ draggedTask: null });
+            this.setState({draggedTask: null});
         }
     };
 
     handleDragStartGroup = (group: TaskGroup) => {
         console.log('handleDragStartGroup called for group:', group.name);
         setTimeout(() => {
-            this.setState({ draggedGroup: group });
+            this.setState({draggedGroup: group});
         }, 0);
     };
 
@@ -556,10 +556,10 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     handleDropOnGroup = async (targetGroup: TaskGroup, position: 'before' | 'after') => {
-        const { draggedGroup } = this.state;
+        const {draggedGroup} = this.state;
         const channelId = this.getChannelId();
 
-        console.log('handleDropOnGroup called:', { draggedGroup, targetGroup, position, channelId });
+        console.log('handleDropOnGroup called:', {draggedGroup, targetGroup, position, channelId});
 
         if (!draggedGroup || !channelId || draggedGroup.id === targetGroup.id) {
             this.setState({
@@ -600,7 +600,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/groups?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     ...draggedGroup,
                     order: newOrder
@@ -629,7 +629,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     groupedTasks = (groupId: string | null) => {
-        const { filterMyTasks, filterCompletion, filterDeadline, currentUserId } = this.state;
+        const {filterMyTasks, filterCompletion, filterDeadline, currentUserId} = this.state;
 
         let filtered = this.state.tasks.filter(task => {
             if (groupId === null) {
@@ -705,7 +705,29 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     render() {
-        const { newTaskText, newGroupName, selectedGroup, newTaskDeadline, channelMembers, showGroupForm, showTaskForm, showFilters, draggedTask, filterMyTasks, filterCompletion, filterDeadline, filterDeadlineCustomFrom, filterDeadlineCustomTo, dragOverTaskId, dragOverPosition, draggedGroup, dragOverGroupId, dragOverGroupPosition, deleteGroupWarningShown, groupToDelete } = this.state;
+        const {
+            newTaskText,
+            newGroupName,
+            selectedGroup,
+            newTaskDeadline,
+            channelMembers,
+            showGroupForm,
+            showTaskForm,
+            showFilters,
+            draggedTask,
+            filterMyTasks,
+            filterCompletion,
+            filterDeadline,
+            filterDeadlineCustomFrom,
+            filterDeadlineCustomTo,
+            dragOverTaskId,
+            dragOverPosition,
+            draggedGroup,
+            dragOverGroupId,
+            dragOverGroupPosition,
+            deleteGroupWarningShown,
+            groupToDelete
+        } = this.state;
 
         const theme = this.props.theme || {};
 
@@ -733,7 +755,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                 }}
             >
                 <div
-                    style={{ flex: 1, overflowY: 'auto', padding: '20px' }}
+                    style={{flex: 1, overflowY: 'auto', padding: '20px'}}
                     onDragOver={(e) => e.preventDefault()}
                 >
                     <div style={{
@@ -742,7 +764,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                         gap: '8px'
                     }}>
                         <button
-                            onClick={() => this.setState({ showTaskForm: !showTaskForm, showGroupForm: false, showFilters: false })}
+                            onClick={() => this.setState({showTaskForm: !showTaskForm, showGroupForm: false, showFilters: false})}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -759,7 +781,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                             {showTaskForm ? '− Add Task' : '+ Add Task'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showGroupForm: !showGroupForm, showTaskForm: false, showFilters: false })}
+                            onClick={() => this.setState({showGroupForm: !showGroupForm, showTaskForm: false, showFilters: false})}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -776,7 +798,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                             {showGroupForm ? '− Add Group' : '+ Add Group'}
                         </button>
                         <button
-                            onClick={() => this.setState({ showFilters: !showFilters, showGroupForm: false, showTaskForm: false }, () => this.saveFilterSettings())}
+                            onClick={() => this.setState({showFilters: !showFilters, showGroupForm: false, showTaskForm: false}, () => this.saveFilterSettings())}
                             style={{
                                 flex: 1,
                                 padding: '8px 12px',
@@ -795,7 +817,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     </div>
 
                     {showFilters && (
-                        <div style={{ marginBottom: '20px' }}>
+                        <div style={{marginBottom: '20px'}}>
                             <div style={{
                                 marginBottom: '12px',
                                 display: 'flex',
@@ -805,7 +827,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 overflow: 'hidden'
                             }}>
                                 <button
-                                    onClick={() => this.setState({ filterMyTasks: false }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterMyTasks: false}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -823,7 +845,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     All
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterMyTasks: true }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterMyTasks: true}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -850,7 +872,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 overflow: 'hidden'
                             }}>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'all' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterCompletion: 'all'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -868,7 +890,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     All
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'complete' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterCompletion: 'complete'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -886,7 +908,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     Complete
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterCompletion: 'incomplete' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterCompletion: 'incomplete'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -914,7 +936,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 overflow: 'hidden'
                             }}>
                                 <button
-                                    onClick={() => this.setState({ filterDeadline: 'all' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterDeadline: 'all'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -933,7 +955,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     All
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterDeadline: 'today' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterDeadline: 'today'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -951,7 +973,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     Due Today
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterDeadline: 'one-week' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterDeadline: 'one-week'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -970,7 +992,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     Due Within 1 Week
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterDeadline: 'overdue' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterDeadline: 'overdue'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -988,7 +1010,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     Past Due
                                 </button>
                                 <button
-                                    onClick={() => this.setState({ filterDeadline: 'custom' }, () => this.saveFilterSettings())}
+                                    onClick={() => this.setState({filterDeadline: 'custom'}, () => this.saveFilterSettings())}
                                     style={{
                                         flex: 1,
                                         padding: '8px 16px',
@@ -1010,12 +1032,12 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
 
                     {filterDeadline === 'custom' && (
-                        <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                            <label style={{ flex: '200px 1 0', fontWeight: 'normal' }}>
-                                <span style={{ marginBottom: '4px', display: "block" }}>From:</span>
+                        <div style={{marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
+                            <label style={{flex: '200px 1 0', fontWeight: 'normal'}}>
+                                <span style={{marginBottom: '4px', display: "block"}}>From:</span>
                                 <input type='date'
                                        value={filterDeadlineCustomFrom}
-                                       onChange={(e) => this.setState({ filterDeadlineCustomFrom: e.target.value })}
+                                       onChange={(e) => this.setState({filterDeadlineCustomFrom: e.target.value})}
                                        placeholder="From"
                                        style={{
                                            width: '100%',
@@ -1028,11 +1050,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                            color: centerChannelColor
                                        }}></input>
                             </label>
-                            <label style={{ flex: '200px 1 0', fontWeight: 'normal' }}>
-                                <span style={{ marginBottom: '4px', display: "block" }}>To:</span>
+                            <label style={{flex: '200px 1 0', fontWeight: 'normal'}}>
+                                <span style={{marginBottom: '4px', display: "block"}}>To:</span>
                                 <input type='date'
                                        value={filterDeadlineCustomTo}
-                                       onChange={(e) => this.setState({ filterDeadlineCustomTo: e.target.value })}
+                                       onChange={(e) => this.setState({filterDeadlineCustomTo: e.target.value})}
                                        placeholder="To"
                                        style={{
                                            width: '100%',
@@ -1049,13 +1071,13 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
 
                     {showTaskForm && (
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ width: '100%', fontWeight: "normal" }}>
-                                <span style={{ marginBottom: '4px', display: "block" }}>Task</span>
+                        <div style={{marginBottom: '20px'}}>
+                            <label style={{width: '100%', fontWeight: "normal"}}>
+                                <span style={{marginBottom: '4px', display: "block"}}>Task</span>
                                 <input
                                     type="text"
                                     value={newTaskText}
-                                    onChange={(e) => this.setState({ newTaskText: e.target.value })}
+                                    onChange={(e) => this.setState({newTaskText: e.target.value})}
                                     onKeyPress={(e) => e.key === 'Enter' && this.addTask()}
                                     placeholder="Add new task..."
                                     style={{
@@ -1071,11 +1093,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     autoFocus
                                 />
                             </label>
-                            <label style={{ width: '100%', fontWeight: "normal" }}>
-                                <span style={{ marginBottom: '4px', display: "block" }}>Group</span>
+                            <label style={{width: '100%', fontWeight: "normal"}}>
+                                <span style={{marginBottom: '4px', display: "block"}}>Group</span>
                                 <select
                                     value={selectedGroup}
-                                    onChange={(e) => this.setState({ selectedGroup: e.target.value })}
+                                    onChange={(e) => this.setState({selectedGroup: e.target.value})}
                                     style={{
                                         width: '100%',
                                         padding: '10px',
@@ -1093,13 +1115,13 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     ))}
                                 </select>
                             </label>
-                            <label style={{ width: '100%', fontWeight: "normal" }}>
-                                <span style={{ marginBottom: '4px', display: "block" }}>Deadline</span>
-                                <div style={{ position: 'relative' }}>
+                            <label style={{width: '100%', fontWeight: "normal"}}>
+                                <span style={{marginBottom: '4px', display: "block"}}>Deadline</span>
+                                <div style={{position: 'relative'}}>
                                     <input
                                         type="date"
                                         value={newTaskDeadline}
-                                        onChange={(e) => this.setState({ newTaskDeadline: e.target.value })}
+                                        onChange={(e) => this.setState({newTaskDeadline: e.target.value})}
                                         placeholder="Deadline (optional)"
                                         style={{
                                             width: '100%',
@@ -1115,7 +1137,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                     />
                                     {newTaskDeadline && (
                                         <button
-                                            onClick={() => this.setState({ newTaskDeadline: '' })}
+                                            onClick={() => this.setState({newTaskDeadline: ''})}
                                             style={{
                                                 position: 'absolute',
                                                 right: '8px',
@@ -1156,11 +1178,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                     )}
 
                     {showGroupForm && (
-                        <div style={{ marginBottom: '20px' }}>
+                        <div style={{marginBottom: '20px'}}>
                             <input
                                 type="text"
                                 value={newGroupName}
-                                onChange={(e) => this.setState({ newGroupName: e.target.value })}
+                                onChange={(e) => this.setState({newGroupName: e.target.value})}
                                 onKeyPress={(e) => e.key === 'Enter' && this.addGroup()}
                                 placeholder="Group name..."
                                 style={{

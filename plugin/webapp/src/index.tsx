@@ -1,5 +1,5 @@
 import React from 'react';
-import { TaskSidebar } from './components/TaskSidebar';
+import {TaskSidebar} from './components/TaskSidebar';
 
 export default class Plugin {
     private store: any = null;
@@ -70,7 +70,7 @@ export default class Plugin {
                 this.channelChangeCallbacks.push(callback);
             };
 
-            return <TaskSidebar {...props} onChannelChange={onChannelChange} />;
+            return <TaskSidebar {...props} onChannelChange={onChannelChange}/>;
         };
 
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(
@@ -81,7 +81,7 @@ export default class Plugin {
         this.toggleRHSPlugin = toggleRHSPlugin;
 
         registry.registerChannelHeaderButtonAction(
-            () => <i className="icon icon-check" style={{ fontSize: '18px' }} />,
+            () => <i className="icon icon-check" style={{fontSize: '18px'}}/>,
             () => {
                 store.dispatch(toggleRHSPlugin);
             },
@@ -94,7 +94,7 @@ export default class Plugin {
             () => {
                 store.dispatch(toggleRHSPlugin);
             },
-            () => <i className="icon icon-check" />
+            () => <i className="icon icon-check"/>
         );
     }
 

@@ -1,6 +1,6 @@
 import React from 'react';
-import { TaskItem } from '../types';
-import { adjustOpacity } from '../utils';
+import {TaskItem} from '../types';
+import {adjustOpacity} from '../utils';
 
 interface TaskItemComponentProps {
     task: TaskItem;
@@ -20,7 +20,7 @@ interface TaskItemComponentProps {
     theme: any;
 }
 
-export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, isDraggingItem, isDropTarget, dropPosition, theme }) => {
+export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, isDraggingItem, isDropTarget, dropPosition, theme}) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [showAssigneePopup, setShowAssigneePopup] = React.useState(false);
     const [isEditing, setIsEditing] = React.useState(false);
@@ -189,7 +189,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
 
             const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(updatedTask)
             });
 
@@ -285,7 +285,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
     };
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div style={{position: 'relative'}}>
             {isDropTarget && dropPosition === 'before' && (
                 <div style={{
                     position: 'absolute',
@@ -297,7 +297,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                     borderRadius: '2px',
                     zIndex: 10,
                     boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }} />
+                }}/>
             )}
 
             <div
@@ -329,7 +329,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                     position: 'relative'
                 } as React.CSSProperties}
             >
-                <div style={{ display: 'flex', alignItems: 'center' }} data-task-background="true">
+                <div style={{display: 'flex', alignItems: 'center'}} data-task-background="true">
                     <input
                         type="checkbox"
                         checked={task.completed}
@@ -344,7 +344,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                         }}
                     />
 
-                    <div style={{ flex: 1 }} data-task-background="true">
+                    <div style={{flex: 1}} data-task-background="true">
                         {isEditing ? (
                             <input
                                 ref={inputRef}
@@ -366,7 +366,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                                 onClick={(e) => e.stopPropagation()}
                             />
                         ) : (
-                            <div style={{ display: 'inline-block' }}>
+                            <div style={{display: 'inline-block'}}>
                                 <span
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -444,7 +444,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
 
                                                         const response = await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                                                             method: 'PUT',
-                                                            headers: { 'Content-Type': 'application/json' },
+                                                            headers: {'Content-Type': 'application/json'},
                                                             body: JSON.stringify(updatedTask)
                                                         });
 
@@ -528,11 +528,11 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                             }}
                             title="Add deadline"
                         >
-                            <i className="icon icon-calendar-outline" style={{ fontSize: '18px', color: dragHandleColor }} />
+                            <i className="icon icon-calendar-outline" style={{fontSize: '18px', color: dragHandleColor}}/>
                         </div>
                     )}
 
-                    <div style={{ position: 'relative', marginLeft: '6px', marginRight: '4px' }} ref={popupRef}>
+                    <div style={{position: 'relative', marginLeft: '6px', marginRight: '4px'}} ref={popupRef}>
                         <div
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -558,10 +558,10 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                                     fontSize: '16px',
                                     color: dragHandleColor
                                 }}>
-                                    <i className="icon icon-account-outline" />
+                                    <i className="icon icon-account-outline"/>
                                 </div>
                             ) : (
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{display: 'flex', alignItems: 'center'}}>
                                     {assignedMembers.slice(0, 3).map((member, index) => (
                                         <img
                                             key={member.id}
@@ -662,11 +662,11 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                                                     marginRight: '8px'
                                                 }}
                                             />
-                                            <span style={{ flex: 1, fontSize: '14px', color: centerChannelColor }}>
+                                            <span style={{flex: 1, fontSize: '14px', color: centerChannelColor}}>
                                                 {member.username}
                                             </span>
                                             {isAssigned && (
-                                                <i className="icon icon-check" style={{ color: buttonBg, fontSize: '16px' }} />
+                                                <i className="icon icon-check" style={{color: buttonBg, fontSize: '16px'}}/>
                                             )}
                                         </div>
                                     );
@@ -708,7 +708,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({ task, chan
                     borderRadius: '2px',
                     zIndex: 10,
                     boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }} />
+                }}/>
             )}
         </div>
     );

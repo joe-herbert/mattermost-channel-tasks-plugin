@@ -1,7 +1,7 @@
 import React from 'react';
-import { TaskItem, TaskGroup } from '../types';
-import { adjustOpacity } from '../utils';
-import { TaskItemComponent } from './TaskItemComponent';
+import {TaskGroup, TaskItem} from '../types';
+import {adjustOpacity} from '../utils';
+import {TaskItemComponent} from './TaskItemComponent';
 
 interface TaskGroupSectionProps {
     title: string;
@@ -35,7 +35,37 @@ interface TaskGroupSectionProps {
     theme: any;
 }
 
-export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, groupId, group, tasks, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDeleteGroup, onUpdateGroupName, onDragStart, onDragEnd, onDrop, onDragOverTask, onDragLeaveTask, onDropOnTask, isDragging, dragOverTaskId, dragOverPosition, onDragStartGroup, onDragEndGroup, onDragOverGroup, onDragLeaveGroup, onDropOnGroup, isDraggingGroup, isDropTargetGroup, dropPositionGroup, theme }) => {
+export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
+                                                                      title,
+                                                                      groupId,
+                                                                      group,
+                                                                      tasks,
+                                                                      channelMembers,
+                                                                      onToggle,
+                                                                      onDelete,
+                                                                      onToggleAssignee,
+                                                                      onUpdateText,
+                                                                      onDeleteGroup,
+                                                                      onUpdateGroupName,
+                                                                      onDragStart,
+                                                                      onDragEnd,
+                                                                      onDrop,
+                                                                      onDragOverTask,
+                                                                      onDragLeaveTask,
+                                                                      onDropOnTask,
+                                                                      isDragging,
+                                                                      dragOverTaskId,
+                                                                      dragOverPosition,
+                                                                      onDragStartGroup,
+                                                                      onDragEndGroup,
+                                                                      onDragOverGroup,
+                                                                      onDragLeaveGroup,
+                                                                      onDropOnGroup,
+                                                                      isDraggingGroup,
+                                                                      isDropTargetGroup,
+                                                                      dropPositionGroup,
+                                                                      theme
+                                                                  }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
     const [isEditingName, setIsEditingName] = React.useState(false);
@@ -180,7 +210,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
 
     if (!hasContent && !showDropZone) {
         return (
-            <div style={{ position: 'relative' }}>
+            <div style={{position: 'relative'}}>
                 {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
                     <div style={{
                         position: 'absolute',
@@ -192,7 +222,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                         borderRadius: '2px',
                         zIndex: 10,
                         boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                    }} />
+                    }}/>
                 )}
                 <div
                     draggable={!!group}
@@ -299,14 +329,14 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                         borderRadius: '2px',
                         zIndex: 10,
                         boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                    }} />
+                    }}/>
                 )}
             </div>
         );
     }
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div style={{position: 'relative'}}>
             {isDraggingGroup && isDropTargetGroup && dropPositionGroup === 'before' && (
                 <div style={{
                     position: 'absolute',
@@ -318,7 +348,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                     borderRadius: '2px',
                     zIndex: 10,
                     boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }} />
+                }}/>
             )}
             <div
                 draggable={!!group}
@@ -470,7 +500,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({ title, group
                     borderRadius: '2px',
                     zIndex: 10,
                     boxShadow: `0 0 4px -2px ${dropIndicatorColor}`
-                }} />
+                }}/>
             )}
         </div>
     );

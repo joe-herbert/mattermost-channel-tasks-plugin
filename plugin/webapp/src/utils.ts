@@ -5,7 +5,7 @@ export const adjustOpacity = (foreground: string, background: string, opacity: n
             r: parseInt(result[1], 16),
             g: parseInt(result[2], 16),
             b: parseInt(result[3], 16)
-        } : { r: 255, g: 255, b: 255 };
+        } : {r: 255, g: 255, b: 255};
     };
 
     const fg = hex2rgb(foreground);
