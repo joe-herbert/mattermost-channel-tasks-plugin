@@ -18,9 +18,10 @@ interface TaskItemComponentProps {
     isDropTarget: boolean;
     dropPosition: 'before' | 'after' | null;
     theme: any;
+    showNotes: (task: TaskItem) => void;
 }
 
-export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, isDraggingItem, isDropTarget, dropPosition, theme}) => {
+export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({task, channelMembers, onToggle, onDelete, onToggleAssignee, onUpdateText, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, isDraggingItem, isDropTarget, dropPosition, theme, showNotes}) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [isHovered, setIsHovered] = React.useState(false);
     const [showMenu, setShowMenu] = React.useState(false);
@@ -154,6 +155,12 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({task, chann
         if (e.key === 'Enter') handleSaveEdit();
         else if (e.key === 'Escape') handleCancelEdit();
     };
+
+    const handleNotesClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        showNotes(task);
+        setShowMenu(false);
+    }
 
     const handleDeadlineClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -521,6 +528,19 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({task, chann
                                     zIndex: 1000, minWidth: '160px', overflow: 'hidden'
                                 }}
                             >
+                                <div
+                                    onClick={handleNotesClick}
+                                    style={{padding: '10px 12px', display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: centerChannelColor}}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = hoverBg;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    <i className="icon icon-text-box-outline" style={{fontSize: '16px', marginRight: '8px', color: dragHandleColor}}/>
+                                    Notes
+                                </div>
                                 <div
                                     onClick={handleDeadlineClick}
                                     style={{padding: '10px 12px', display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: centerChannelColor}}

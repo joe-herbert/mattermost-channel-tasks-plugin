@@ -33,6 +33,7 @@ interface TaskGroupSectionProps {
     isDropTargetGroup: boolean;
     dropPositionGroup: 'before' | 'after' | null;
     theme: any;
+    showNotes: (task: TaskItem) => void;
 }
 
 export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
@@ -64,7 +65,8 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
                                                                       isDraggingGroup,
                                                                       isDropTargetGroup,
                                                                       dropPositionGroup,
-                                                                      theme
+                                                                      theme,
+                                                                      showNotes
                                                                   }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
     const [isDraggingThis, setIsDraggingThis] = React.useState(false);
@@ -428,6 +430,7 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
                         isDropTarget={dragOverTaskId === task.id}
                         dropPosition={dragOverTaskId === task.id ? dragOverPosition : null}
                         theme={theme}
+                        showNotes={showNotes}
                     />
                 ))}
             </div>

@@ -1,6 +1,7 @@
 export interface TaskItem {
     id: string;
     text: string;
+    notes: string;
     completed: boolean;
     assignee_ids?: string[];
     group_id?: string;

@@ -29,7 +29,7 @@ export const DeleteCompletedWarning: React.FC<DeleteCompletedWarningProps> = ({t
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 10000
+            zIndex: 99999
         }}>
             <div style={{
                 backgroundColor: centerChannelBg,

@@ -32,7 +32,7 @@ export const DeleteGroupWarning: React.FC<DeleteGroupWarningProps> = ({groupName
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 10000
+            zIndex: 99999
         }}>
             <div style={{
                 backgroundColor: centerChannelBg,

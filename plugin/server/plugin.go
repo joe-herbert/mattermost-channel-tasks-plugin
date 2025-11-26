@@ -28,6 +28,7 @@ type Plugin struct {
 type TaskItem struct {
 	ID          string     `json:"id"`
 	Text        string     `json:"text"`
+	Notes       string     `json:"notes"`
 	Completed   bool       `json:"completed"`
 	AssigneeIDs []string   `json:"assignee_ids,omitempty"`
 	GroupID     string     `json:"group_id,omitempty"`

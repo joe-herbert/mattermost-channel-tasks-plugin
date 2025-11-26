@@ -4,6 +4,7 @@ import {adjustOpacity} from '../utils';
 import {TaskGroupSection} from './TaskGroupSection';
 import {DeleteGroupWarning} from './DeleteGroupWarning';
 import {DeleteCompletedWarning} from './DeleteCompletedWarning';
+import {TaskItemNotes} from "./TaskItemNotes";
 
 interface TaskSidebarProps {
     channelId?: string;
@@ -97,6 +98,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         hasEverHadTasks: false,
         showConfetti: false,
         deleteCompletedWarningShown: false,
+        taskToShowNotes: null as TaskItem | null,
     };
 
     componentDidMount() {
@@ -213,7 +215,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             });
             if (r.ok) {
                 this.setState({newTaskText: '', newTaskDeadline: ''});
-                this.loadTasks();
+                await this.loadTasks();
             }
         } catch (e) {
             console.error('Error adding task:', e);
@@ -227,7 +229,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, completed: !task.completed})
             });
-            this.loadTasks();
+            await this.loadTasks();
         } catch (e) {
             console.error('Error toggling task:', e);
         }
@@ -240,7 +242,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, text: newText})
             });
-            this.loadTasks();
+            await this.loadTasks();
         } catch (e) {
             console.error('Error updating task text:', e);
         }
@@ -251,11 +253,33 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         if (!channelId) return;
         try {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}&id=${taskId}`, {method: 'DELETE'});
-            this.loadTasks();
+            await this.loadTasks();
         } catch (e) {
             console.error('Error deleting task:', e);
         }
     };
+
+    showTaskNotes = async (task: TaskItem) => {
+        console.log('showTaskNotes', task);
+        this.setState({taskToShowNotes: task})
+    };
+
+    hideTaskNotes = () => {
+        this.setState({taskToShowNotes: null});
+    };
+
+    updateTaskNotes = async (task: TaskItem, notes: string) => {
+        const channelId = this.getChannelId();
+        if (!channelId) return;
+        try {
+            await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
+                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, notes})
+            });
+            await this.loadTasks();
+        } catch (e) {
+            console.error('Error updating task notes:', e);
+        }
+    }
 
     toggleAssignee = async (task: TaskItem, userId: string) => {
         const channelId = this.getChannelId();
@@ -266,7 +290,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             await fetch(`/plugins/com.mattermost.channel-task/api/v1/tasks?channel_id=${channelId}`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...task, assignee_ids: newA})
             });
-            this.loadTasks();
+            await this.loadTasks();
         } catch (e) {
             console.error('Error toggling assignee:', e);
         }
@@ -282,7 +306,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             });
             if (r.ok) {
                 this.setState({newGroupName: ''});
-                this.loadTasks();
+                await this.loadTasks();
             }
         } catch (e) {
             console.error('Error adding group:', e);
@@ -572,7 +596,8 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
             groupToDelete,
             hasEverHadTasks,
             showConfetti,
-            deleteCompletedWarningShown
+            deleteCompletedWarningShown,
+            taskToShowNotes
         } = this.state;
         const theme = this.props.theme || {};
         const centerChannelBg = theme.centerChannelBg || '#ffffff';
@@ -777,13 +802,13 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                           onUpdateText={this.updateTaskText} onDeleteGroup={() => this.confirmDeleteGroup(group.id)} onUpdateGroupName={this.updateGroupName} onDragStart={this.handleDragStart} onDragEnd={this.handleDragEnd} onDrop={this.handleDrop}
                                           onDragOverTask={this.handleDragOverTask} onDragLeaveTask={this.handleDragLeaveTask} onDropOnTask={this.handleDropOnTask} isDragging={!!draggedTask} dragOverTaskId={dragOverTaskId} dragOverPosition={dragOverPosition}
                                           onDragStartGroup={this.handleDragStartGroup} onDragEndGroup={this.handleDragEndGroup} onDragOverGroup={this.handleDragOverGroup} onDragLeaveGroup={this.handleDragLeaveGroup} onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup}
-                                          isDropTargetGroup={dragOverGroupId === group.id} dropPositionGroup={dragOverGroupId === group.id ? dragOverGroupPosition : null} theme={theme}/>
+                                          isDropTargetGroup={dragOverGroupId === group.id} dropPositionGroup={dragOverGroupId === group.id ? dragOverGroupPosition : null} theme={theme} showNotes={this.showTaskNotes}/>
                     ))}
 
                     <TaskGroupSection title="Ungrouped" groupId={null} group={null} tasks={this.groupedTasks(null)} channelMembers={channelMembers} onToggle={this.toggleTask} onDelete={this.deleteTask} onToggleAssignee={this.toggleAssignee} onUpdateText={this.updateTaskText}
                                       onDragStart={this.handleDragStart} onDragEnd={this.handleDragEnd} onDrop={this.handleDrop} onDragOverTask={this.handleDragOverTask} onDragLeaveTask={this.handleDragLeaveTask} onDropOnTask={this.handleDropOnTask} isDragging={!!draggedTask}
                                       dragOverTaskId={dragOverTaskId} dragOverPosition={dragOverPosition} onDragStartGroup={this.handleDragStartGroup} onDragEndGroup={this.handleDragEndGroup} onDragOverGroup={this.handleDragOverGroup} onDragLeaveGroup={this.handleDragLeaveGroup}
-                                      onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup} isDropTargetGroup={false} dropPositionGroup={null} theme={theme}/>
+                                      onDropOnGroup={this.handleDropOnGroup} isDraggingGroup={!!draggedGroup} isDropTargetGroup={false} dropPositionGroup={null} theme={theme} showNotes={this.showTaskNotes}/>
 
                     {noTasksExist && !hasEverHadTasks && (
                         <div style={{textAlign: 'center', padding: '40px 20px', color: subtleText}}>
@@ -852,6 +877,10 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
                 {deleteCompletedWarningShown && (
                     <DeleteCompletedWarning taskCount={completedTasksCount} onConfirm={this.deleteCompletedWithPreference} onCancel={this.cancelDeleteCompleted} theme={theme}/>
+                )}
+
+                {taskToShowNotes && (
+                    <TaskItemNotes task={taskToShowNotes} hideTaskNotes={this.hideTaskNotes} updateTaskNotes={this.updateTaskNotes} bg={centerChannelBg} subtleBackground={subtleBackground} buttonBg={buttonBg} buttonColor={centerChannelColor} borderColor={borderColor}></TaskItemNotes>
                 )}
             </div>
         );
