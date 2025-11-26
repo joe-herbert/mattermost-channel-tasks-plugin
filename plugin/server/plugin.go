@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	botUsername    = "channeltasks"
+	botUsername    = "ChannelTasks"
 	botDisplayName = "Channel Tasks"
 	botDescription = "A bot that sends daily task reminders."
 )
@@ -97,13 +97,23 @@ func (p *Plugin) ensureBot() (string, error) {
 	// Try to find existing bot
 	bot, _ := p.API.GetUserByUsername(botUsername)
 	if bot != nil {
-		// Update the bot to ensure display name is correct
+		// Update the bot's display name via PatchBot
 		if _, err := p.API.PatchBot(bot.Id, &model.BotPatch{
 			DisplayName: model.NewString(botDisplayName),
 			Description: model.NewString(botDescription),
 		}); err != nil {
 			p.API.LogWarn("Failed to patch bot", "error", err.Error())
 		}
+
+		// ALSO update the User record's display fields
+		// This is what actually shows in the sidebar and message headers
+		bot.FirstName = botDisplayName
+		bot.LastName = ""
+		bot.Nickname = botDisplayName
+		if _, err := p.API.UpdateUser(bot); err != nil {
+			p.API.LogWarn("Failed to update bot user", "error", err.Error())
+		}
+
 		return bot.Id, nil
 	}
 
@@ -115,6 +125,17 @@ func (p *Plugin) ensureBot() (string, error) {
 	})
 	if appErr != nil {
 		return "", fmt.Errorf("failed to create bot: %s", appErr.Error())
+	}
+
+	// Update the User record for the newly created bot
+	botUser, err := p.API.GetUser(createdBot.UserId)
+	if err == nil && botUser != nil {
+		botUser.FirstName = botDisplayName
+		botUser.LastName = ""
+		botUser.Nickname = botDisplayName
+		if _, updateErr := p.API.UpdateUser(botUser); updateErr != nil {
+			p.API.LogWarn("Failed to update new bot user", "error", updateErr.Error())
+		}
 	}
 
 	// Set the bot profile image
