@@ -5,9 +5,31 @@ export default class Plugin {
     private store: any = null;
     private toggleRHSPlugin: any = null;
     private channelChangeCallbacks: Array<() => void> = [];
+    private unsubscribeStore: (() => void) | null = null;
+    private lastChannelId: string | null = null;
+    private activityReported: boolean = false;
 
     public initialize(registry: any, store: any) {
         this.store = store;
+
+        // Subscribe to store changes to detect channel switches
+        this.unsubscribeStore = store.subscribe(() => {
+            const state = store.getState();
+            const currentChannelId = state?.entities?.channels?.currentChannelId;
+
+            if (currentChannelId && currentChannelId !== this.lastChannelId) {
+                this.lastChannelId = currentChannelId;
+
+                // Report activity on channel change
+                this.reportActivity();
+
+                // Notify all registered callbacks that channel changed
+                this.channelChangeCallbacks.forEach(callback => callback());
+            }
+        });
+
+        // Report activity on initial load
+        this.reportActivity();
 
         // Create a title component that updates when channel changes
         const DynamicTitle = () => {
@@ -28,9 +50,6 @@ export default class Plugin {
                             const channel = channels[currentChannelId];
                             setTitle(`${channel.display_name || channel.name} Tasks`);
                         }
-
-                        // Notify all registered callbacks that channel changed
-                        this.channelChangeCallbacks.forEach(callback => callback());
                     }
                 };
 
@@ -79,8 +98,23 @@ export default class Plugin {
         );
     }
 
+    private reportActivity = async () => {
+        // Only report once per session to avoid spamming
+        // The server will handle the "once per day" logic
+        try {
+            await fetch('/plugins/com.mattermost.channel-task/api/v1/activity', {
+                method: 'POST'
+            });
+        } catch (error) {
+            console.error('Error reporting activity:', error);
+        }
+    };
+
     public uninitialize() {
-        // Cleanup
+        if (this.unsubscribeStore) {
+            this.unsubscribeStore();
+        }
+        this.channelChangeCallbacks = [];
     }
 }
 

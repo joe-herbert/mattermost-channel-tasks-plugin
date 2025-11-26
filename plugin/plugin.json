@@ -2,8 +2,8 @@
   "id": "com.mattermost.channel-task",
   "name": "Channel Task List",
   "author": "Joe Herbert",
-  "description": "Adds a task list for each channel",
-  "version": "1.1.0",
+  "description": "Adds a task list for each channel with daily task reminders",
+  "version": "1.2.0",
   "min_server_version": "5.20.0",
   "server": {
     "executables": {
