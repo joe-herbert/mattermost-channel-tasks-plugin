@@ -50,7 +50,7 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
             alignItems: 'stretch',
             justifyItems: 'start',
             gap: '12px',
-            zIndex: 10000,
+            zIndex: 500,
             backgroundColor: bg,
             maxHeight: '700px',
         }}>
