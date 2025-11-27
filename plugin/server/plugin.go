@@ -686,39 +686,38 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 	completedYesterdayTasks, overdueTasks, todayTasks, weekTasks, otherTasks := p.categorizeTasks(allTasks)
 
 	var sb strings.Builder
-	sb.WriteString("### Your Daily Task Summary\n\n\n")
+	sb.WriteString("### Your Daily Task Summary\n\n\n---\n")
 
 	if len(completedYesterdayTasks) > 0 {
-		sb.WriteString("🟩 **Completed Yesterday**\n")
+		sb.WriteString("🟩 **Completed Yesterday**\n\n")
 		p.writeTaskList(&sb, completedYesterdayTasks)
-		sb.WriteString("\n")
+		sb.WriteString("\n---\n")
 	}
 
 	if len(overdueTasks) > 0 {
-		sb.WriteString("🟥 **Past Due**\n")
+		sb.WriteString("🟥 **Past Due**\n\n")
 		p.writeTaskList(&sb, overdueTasks)
-		sb.WriteString("\n")
+		sb.WriteString("\n---\n")
 	}
 
 	if len(todayTasks) > 0 {
-		sb.WriteString("🟧 **Due Today**\n")
+		sb.WriteString("🟧 **Due Today**\n\n")
 		p.writeTaskList(&sb, todayTasks)
-		sb.WriteString("\n")
+		sb.WriteString("\n---\n")
 	}
 
 	if len(weekTasks) > 0 {
-		sb.WriteString("🟨 **Due Within 1 Week**\n")
+		sb.WriteString("🟨 **Due Within 1 Week**\n\n")
 		p.writeTaskList(&sb, weekTasks)
-		sb.WriteString("\n")
+		sb.WriteString("\n---\n")
 	}
 
 	if len(otherTasks) > 0 {
-		sb.WriteString("⬜ **Everything Else**\n")
+		sb.WriteString("⬜ **Everything Else**\n\n")
 		p.writeTaskList(&sb, otherTasks)
-		sb.WriteString("\n")
+		sb.WriteString("\n---\n")
 	}
 
-	sb.WriteString("---\n")
 	sb.WriteString("_Use `/tasks-message-off` to disable these reminders._\n\n")
 	sb.WriteString("---\n")
 
@@ -890,15 +889,20 @@ func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (completedYesterdayTas
 }
 
 func (p *Plugin) writeTaskList(sb *strings.Builder, tasks []TaskWithContext) {
+	lastChannelName := ""
 	for _, t := range tasks {
 		deadlineStr := ""
 		if t.Task.Deadline != nil {
 			deadlineStr = fmt.Sprintf(" | _due %s_", t.Task.Deadline.Format("Mon Jan 2"))
 		}
+		if lastChannelName != t.ChannelName {
+			sb.WriteString(fmt.Sprintf("**%s**\n", t.ChannelName))
+			lastChannelName = t.ChannelName
+		}
 		if t.IsPrivate {
-			sb.WriteString(fmt.Sprintf("- **Private**: %s%s\n", t.Task.Text, deadlineStr))
+			sb.WriteString(fmt.Sprintf("- %s%s\n", t.Task.Text, deadlineStr))
 		} else {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s%s\n", t.ChannelName, t.Task.Text, deadlineStr))
+			sb.WriteString(fmt.Sprintf("- %s%s\n", t.Task.Text, deadlineStr))
 		}
 	}
 }
