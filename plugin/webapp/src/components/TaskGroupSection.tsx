@@ -80,7 +80,27 @@ export const TaskGroupSection: React.FC<TaskGroupSectionProps> = ({
 
         const updateHeight = () => {
             if (contentRef.current) {
-                setContentHeight(contentRef.current.scrollHeight);
+                // Calculate height based on children, excluding absolutely positioned elements like popups
+                let totalHeight = 0;
+                const children = contentRef.current.children;
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i] as HTMLElement;
+                    // Get the bounding rect which gives us the actual rendered height
+                    const rect = child.getBoundingClientRect();
+                    // Get margins from the outer wrapper
+                    const style = window.getComputedStyle(child);
+                    const marginTop = parseFloat(style.marginTop) || 0;
+                    const marginBottom = parseFloat(style.marginBottom) || 0;
+                    // Also check for margin on the first child (the actual task div with marginBottom)
+                    const firstChild = child.firstElementChild as HTMLElement;
+                    let innerMarginBottom = 0;
+                    if (firstChild) {
+                        const innerStyle = window.getComputedStyle(firstChild);
+                        innerMarginBottom = parseFloat(innerStyle.marginBottom) || 0;
+                    }
+                    totalHeight += rect.height + marginTop + marginBottom + innerMarginBottom;
+                }
+                setContentHeight(totalHeight);
             }
         };
 
