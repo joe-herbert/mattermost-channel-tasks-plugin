@@ -80,12 +80,14 @@ func (p *Plugin) OnActivate() error {
 		// Channel task commands
 		{"tasks", "Show all tasks in this channel"},
 		{"tasks-mine", "Show tasks assigned to me in this channel"},
+		{"tasks-overdue", "Show tasks due in the past in this channel"},
 		{"tasks-today", "Show tasks due today in this channel"},
 		{"tasks-incomplete", "Show incomplete tasks in this channel"},
 		{"tasks-complete", "Show completed tasks in this channel"},
 		{"tasks-todo", "Show which tasks to focus on next in this channel (incomplete, assigned to me, prioritized by deadline)"},
 		// Private task commands
 		{"tasks-private", "Show all private tasks"},
+		{"tasks-private-overdue", "Show private tasks due in the past"},
 		{"tasks-private-today", "Show private tasks due today"},
 		{"tasks-private-incomplete", "Show incomplete private tasks"},
 		{"tasks-private-complete", "Show completed private tasks"},
@@ -173,6 +175,8 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		return p.handleTasksCommand(args, "all")
 	case "tasks-mine", "tmine":
 		return p.handleTasksCommand(args, "mine")
+	case "tasks-overdue":
+		return p.handleTasksCommand(args, "overdue")
 	case "tasks-today":
 		return p.handleTasksCommand(args, "today")
 	case "tasks-incomplete":
@@ -186,6 +190,8 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		return p.handlePrivateTasksCommand(args, "all")
 	case "tasks-private-today":
 		return p.handlePrivateTasksCommand(args, "today")
+	case "tasks-private-overdue":
+		return p.handlePrivateTasksCommand(args, "overdue")
 	case "tasks-private-incomplete":
 		return p.handlePrivateTasksCommand(args, "incomplete")
 	case "tasks-private-complete":
@@ -276,6 +282,12 @@ func (p *Plugin) handleTasksCommand(args *model.CommandArgs, filter string) (*mo
 				filtered = append(filtered, t)
 			}
 		}
+	case "overdue":
+		for _, t := range list.Items {
+			if t.Deadline != nil && t.Deadline.Before(todayStart) {
+				filtered = append(filtered, t)
+			}
+		}
 	case "incomplete":
 		for _, t := range list.Items {
 			if !t.Completed {
@@ -303,10 +315,12 @@ func (p *Plugin) handleTasksCommand(args *model.CommandArgs, filter string) (*mo
 			}
 		}
 		// Prioritize: today first, then within week, then others
-		var todayTasks, weekTasks, otherTasks []TaskItem
+		var overdueTasks, todayTasks, weekTasks, otherTasks []TaskItem
 		for _, t := range myIncomplete {
 			if t.Deadline == nil {
 				otherTasks = append(otherTasks, t)
+			} else if t.Deadline.Before(todayStart) {
+				overdueTasks = append(overdueTasks, t)
 			} else if t.Deadline.Before(todayEnd) {
 				todayTasks = append(todayTasks, t)
 			} else if t.Deadline.Before(weekEnd) {
@@ -316,7 +330,9 @@ func (p *Plugin) handleTasksCommand(args *model.CommandArgs, filter string) (*mo
 			}
 		}
 		// Show today if any, else week if any, else all
-		if len(todayTasks) > 0 {
+		if len(overdueTasks) > 0 {
+			filtered = overdueTasks
+		} else if len(todayTasks) > 0 {
 			filtered = todayTasks
 		} else if len(weekTasks) > 0 {
 			filtered = weekTasks
@@ -414,6 +430,12 @@ func (p *Plugin) handlePrivateTasksCommand(args *model.CommandArgs, filter strin
 				filtered = append(filtered, t)
 			}
 		}
+	case "overdue":
+		for _, t := range taskList.Items {
+			if t.Deadline != nil && t.Deadline.Before(todayStart) {
+				filtered = append(filtered, t)
+			}
+		}
 	case "incomplete":
 		for _, t := range taskList.Items {
 			if !t.Completed {
@@ -434,10 +456,12 @@ func (p *Plugin) handlePrivateTasksCommand(args *model.CommandArgs, filter strin
 				incomplete = append(incomplete, t)
 			}
 		}
-		var todayTasks, weekTasks, otherTasks []TaskItem
+		var overdueTasks, todayTasks, weekTasks, otherTasks []TaskItem
 		for _, t := range incomplete {
 			if t.Deadline == nil {
 				otherTasks = append(otherTasks, t)
+			} else if t.Deadline.Before(todayStart) {
+				overdueTasks = append(overdueTasks, t)
 			} else if t.Deadline.Before(todayEnd) {
 				todayTasks = append(todayTasks, t)
 			} else if t.Deadline.Before(weekEnd) {
@@ -446,7 +470,9 @@ func (p *Plugin) handlePrivateTasksCommand(args *model.CommandArgs, filter strin
 				otherTasks = append(otherTasks, t)
 			}
 		}
-		if len(todayTasks) > 0 {
+		if len(overdueTasks) > 0 {
+			filtered = overdueTasks
+		} else if len(todayTasks) > 0 {
 			filtered = todayTasks
 		} else if len(weekTasks) > 0 {
 			filtered = weekTasks
@@ -510,6 +536,8 @@ func (p *Plugin) filterLabel(filter string) string {
 		return "Assigned to Me"
 	case "today":
 		return "Due Today"
+	case "overdue":
+		return "Overdue"
 	case "incomplete":
 		return "Incomplete"
 	case "complete":
@@ -537,7 +565,7 @@ func (p *Plugin) getTaskStatusIcon(task TaskItem, todayEnd, weekEnd time.Time) s
 		return "🟧" // Due today
 	}
 	if task.Deadline.Before(weekEnd) {
-		return "🟧" // Due within a week
+		return "🟨" // Due within a week
 	}
 	return "⬜" // No urgent deadline
 }
@@ -646,7 +674,7 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 	channelTasks := p.getTasksAssignedToUser(userID)
 
 	// Get private tasks with deadlines
-	privateTasks := p.getPrivateTasksWithDeadlines(userID)
+	privateTasks := p.getPrivateTasksForMessage(userID)
 
 	// Combine all tasks
 	allTasks := append(channelTasks, privateTasks...)
@@ -655,25 +683,37 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 		return
 	}
 
-	todayTasks, weekTasks, otherTasks := p.categorizeTasks(allTasks)
+	completedYesterdayTasks, overdueTasks, todayTasks, weekTasks, otherTasks := p.categorizeTasks(allTasks)
 
 	var sb strings.Builder
 	sb.WriteString("### Your Daily Task Summary\n\n\n")
 
+	if len(completedYesterdayTasks) > 0 {
+		sb.WriteString("🟩 **Completed Yesterday**\n")
+		p.writeTaskList(&sb, completedYesterdayTasks)
+		sb.WriteString("\n")
+	}
+
+	if len(overdueTasks) > 0 {
+		sb.WriteString("🟥 **Past Due**\n")
+		p.writeTaskList(&sb, overdueTasks)
+		sb.WriteString("\n")
+	}
+
 	if len(todayTasks) > 0 {
-		sb.WriteString("🟥 **Due Today**\n")
+		sb.WriteString("🟧 **Due Today**\n")
 		p.writeTaskList(&sb, todayTasks)
 		sb.WriteString("\n")
 	}
 
 	if len(weekTasks) > 0 {
-		sb.WriteString("🟧 **Due Within 1 Week**\n")
+		sb.WriteString("🟨 **Due Within 1 Week**\n")
 		p.writeTaskList(&sb, weekTasks)
 		sb.WriteString("\n")
 	}
 
 	if len(otherTasks) > 0 {
-		sb.WriteString("🟩 **Everything Else**\n")
+		sb.WriteString("⬜ **Everything Else**\n")
 		p.writeTaskList(&sb, otherTasks)
 		sb.WriteString("\n")
 	}
@@ -715,9 +755,6 @@ func (p *Plugin) getTasksAssignedToUser(userID string) []TaskWithContext {
 		}
 
 		for _, task := range list.Items {
-			if task.Completed {
-				continue
-			}
 			for _, assigneeID := range task.AssigneeIDs {
 				if assigneeID == userID {
 					groupName := "Ungrouped"
@@ -742,7 +779,7 @@ func (p *Plugin) getTasksAssignedToUser(userID string) []TaskWithContext {
 	return result
 }
 
-func (p *Plugin) getPrivateTasksWithDeadlines(userID string) []TaskWithContext {
+func (p *Plugin) getPrivateTasksForMessage(userID string) []TaskWithContext {
 	var result []TaskWithContext
 
 	key := p.privateTasksKey(userID)
@@ -762,11 +799,6 @@ func (p *Plugin) getPrivateTasksWithDeadlines(userID string) []TaskWithContext {
 	}
 
 	for _, task := range taskList.Items {
-		// Only include incomplete private tasks that have a deadline
-		if task.Completed || task.Deadline == nil {
-			continue
-		}
-
 		groupName := "Ungrouped"
 		if task.GroupID != "" {
 			if name, ok := groupMap[task.GroupID]; ok {
@@ -786,20 +818,36 @@ func (p *Plugin) getPrivateTasksWithDeadlines(userID string) []TaskWithContext {
 	return result
 }
 
-func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (today, week, other []TaskWithContext) {
+func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (completedYesterdayTasks, overdue, today, week, other []TaskWithContext) {
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	todayEnd := todayStart.Add(24 * time.Hour)
 	weekEnd := todayStart.Add(7 * 24 * time.Hour)
 
 	for _, t := range tasks {
+		if t.Task.Completed {
+			completedAt := time.Date(t.Task.CompletedAt.Year(), t.Task.CompletedAt.Month(), t.Task.CompletedAt.Day(), 0, 0, 0, 0, t.Task.CompletedAt.Location())
+			yesterdayStart := todayStart.Add(-24 * time.Hour)
+			if completedAt.Equal(yesterdayStart) {
+				completedYesterdayTasks = append(completedYesterdayTasks, t)
+				continue
+			}
+			continue
+		}
+
+		if t.IsPrivate && t.Task.Deadline == nil {
+			continue
+		}
+
 		if t.Task.Deadline == nil {
 			other = append(other, t)
 			continue
 		}
 
 		deadline := *t.Task.Deadline
-		if deadline.Before(todayEnd) {
+		if deadline.Before(todayStart) {
+			overdue = append(overdue, t)
+		} else if deadline.Before(todayEnd) {
 			today = append(today, t)
 		} else if deadline.Before(weekEnd) {
 			week = append(week, t)
@@ -832,11 +880,13 @@ func (p *Plugin) categorizeTasks(tasks []TaskWithContext) (today, week, other []
 		})
 	}
 
+	sortTasks(completedYesterdayTasks)
+	sortTasks(overdue)
 	sortTasks(today)
 	sortTasks(week)
 	sortTasks(other)
 
-	return today, week, other
+	return completedYesterdayTasks, overdue, today, week, other
 }
 
 func (p *Plugin) writeTaskList(sb *strings.Builder, tasks []TaskWithContext) {
