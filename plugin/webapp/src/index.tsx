@@ -40,6 +40,16 @@ export default class Plugin {
 
         const pluginInstance = this;
 
+        const handleTogglePrivate = () => {
+            pluginInstance.showPrivate = !pluginInstance.showPrivate;
+            try {
+                localStorage.setItem(PRIVATE_MODE_STORAGE_KEY, String(pluginInstance.showPrivate));
+            } catch (e) {
+                console.error('Error saving private mode preference:', e);
+            }
+            pluginInstance.forceUpdateCallbacks.forEach(cb => cb());
+        };
+
         const DynamicTitle = () => {
             const [title, setTitle] = React.useState(pluginInstance.showPrivate ? 'Private Tasks' : 'Channel Tasks');
             const [showPrivate, setShowPrivate] = React.useState(pluginInstance.showPrivate);
@@ -127,7 +137,19 @@ export default class Plugin {
             }, [showPrivate]);
 
             return (
-                <span>{title}</span>
+                <div id="header" style={{position: 'relative', width: '100%'}}>
+                    <span style={{overflow: 'hidden', maxWidth: 'calc(100% - 2em)', display: 'block', textOverflow: 'ellipsis'}}>{title}</span>
+                    <div style={{position: 'absolute', top: '50%', right: '-1rem', paddingLeft: '2px', display: 'flex', alignItems: 'center', gap: '0px', backgroundColor: 'rgb(var(--center-channel-bg-rgb))', color: 'rgba(var(--center-channel-color-rgb), var(--icon-opacity))', cursor: 'pointer', fontSize: '18px', transform: 'translateY(-50%)'}} onClick={handleTogglePrivate} title={showPrivate ? 'Switch to Channel Tasks' : 'Switch to Private Tasks'}>
+                        <i className="icon icon-arrow-right"></i>
+                        {showPrivate ? <i className={"icon icon-product-channels"} style={{width: '1em'}}></i>
+                            : <i className={"icon icon-account-outline"} style={{width: '1em'}}></i>}
+                    </div>
+                    <style>{`
+                        #header .icon:before {
+                            margin: 0!important;
+                        }
+                    `}</style>
+                </div>
             );
         };
 
@@ -146,17 +168,7 @@ export default class Plugin {
                 pluginInstance.channelChangeCallbacks.push(callback);
             };
 
-            const handleTogglePrivate = () => {
-                pluginInstance.showPrivate = !pluginInstance.showPrivate;
-                try {
-                    localStorage.setItem(PRIVATE_MODE_STORAGE_KEY, String(pluginInstance.showPrivate));
-                } catch (e) {
-                    console.error('Error saving private mode preference:', e);
-                }
-                pluginInstance.forceUpdateCallbacks.forEach(cb => cb());
-            };
-
-            return <TaskSidebar {...props} onChannelChange={onChannelChange} privateTasks={privateMode} onTogglePrivate={handleTogglePrivate}/>;
+            return <TaskSidebar {...props} onChannelChange={onChannelChange} privateTasks={privateMode}/>;
         };
 
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(TaskSidebarWrapper, DynamicTitle);
