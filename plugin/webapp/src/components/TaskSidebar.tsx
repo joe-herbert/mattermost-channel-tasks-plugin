@@ -12,6 +12,7 @@ interface TaskSidebarProps {
     theme?: any;
     onChannelChange?: (callback: () => void) => void;
     privateTasks?: boolean;
+    onTogglePrivate?: () => void;  // Add this line
 }
 
 const ConfettiAnimation: React.FC<{ theme: any }> = ({theme}) => {
@@ -1039,6 +1040,21 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                         </div>
                     )}
                 </div>
+
+                <button onClick={() => {
+                    if (this.props.onTogglePrivate) {
+                        this.props.onTogglePrivate();
+                    }
+                }} style={{
+                    padding: '12px', fontSize: '14px', fontWeight: 500,
+                    backgroundColor: subtleBackground,
+                    color: centerChannelColor,
+                    borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none',
+                    position: 'absolute', bottom: '20px', left: '20px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)', display: 'flex', alignItems: 'center', gap: '4px', zIndex: 100
+                }}>
+                    {privateTasks ? 'Show Channel' : 'Show Private'}
+                </button>
 
                 {completedTasksCount > 0 && (
                     <button

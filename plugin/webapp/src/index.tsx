@@ -11,7 +11,7 @@ export default class Plugin {
     private unsubscribeStore: (() => void) | null = null;
     private lastChannelId: string | null = null;
     private showPrivate: boolean = false;
-    private forceUpdateCallback: (() => void) | null = null;
+    private forceUpdateCallbacks: Array<() => void> = [];
 
     public initialize(registry: any, store: any) {
         this.store = store;
@@ -41,13 +41,22 @@ export default class Plugin {
         const pluginInstance = this;
 
         const DynamicTitle = () => {
-            const [title, setTitle] = React.useState('Channel Tasks');
+            const [title, setTitle] = React.useState(pluginInstance.showPrivate ? 'Private Tasks' : 'Channel Tasks');
             const [showPrivate, setShowPrivate] = React.useState(pluginInstance.showPrivate);
 
             const centerChannelBg = '#ffffff';
             const centerChannelColor = '#333333';
             const buttonBg = '#1c58d9';
             const subtleBackground = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
+
+            // Subscribe to private mode changes
+            React.useEffect(() => {
+                const callback = () => setShowPrivate(pluginInstance.showPrivate);
+                pluginInstance.forceUpdateCallbacks.push(callback);
+                return () => {
+                    pluginInstance.forceUpdateCallbacks = pluginInstance.forceUpdateCallbacks.filter(cb => cb !== callback);
+                };
+            }, []);
 
             React.useEffect(() => {
                 let lastChannelId: string | null = null;
@@ -117,29 +126,8 @@ export default class Plugin {
                 return () => unsubscribe();
             }, [showPrivate]);
 
-            React.useEffect(() => {
-                pluginInstance.showPrivate = showPrivate;
-                // Save preference to localStorage
-                try {
-                    localStorage.setItem(PRIVATE_MODE_STORAGE_KEY, String(showPrivate));
-                } catch (e) {
-                    console.error('Error saving private mode preference:', e);
-                }
-                pluginInstance.forceUpdateCallback?.();
-            }, [showPrivate]);
-
             return (
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', width: '100%'}}>
-                    <span style={{overflow: 'hidden'}}>{title}</span>
-                    <button onClick={() => setShowPrivate(!showPrivate)} style={{
-                        padding: '6px 12px', fontSize: '12px', fontWeight: 500,
-                        backgroundColor: subtleBackground,
-                        color: centerChannelColor,
-                        borderRadius: '4px', border: 'none', cursor: 'pointer', transition: 'all 0.2s', userSelect: 'none'
-                    }}>
-                        {showPrivate ? 'Show Channel' : 'Show Private'}
-                    </button>
-                </div>
+                <span>{title}</span>
             );
         };
 
@@ -147,9 +135,10 @@ export default class Plugin {
             const [privateMode, setPrivateMode] = React.useState(pluginInstance.showPrivate);
 
             React.useEffect(() => {
-                pluginInstance.forceUpdateCallback = () => setPrivateMode(pluginInstance.showPrivate);
+                const callback = () => setPrivateMode(pluginInstance.showPrivate);
+                pluginInstance.forceUpdateCallbacks.push(callback);
                 return () => {
-                    pluginInstance.forceUpdateCallback = null;
+                    pluginInstance.forceUpdateCallbacks = pluginInstance.forceUpdateCallbacks.filter(cb => cb !== callback);
                 };
             }, []);
 
@@ -157,7 +146,17 @@ export default class Plugin {
                 pluginInstance.channelChangeCallbacks.push(callback);
             };
 
-            return <TaskSidebar {...props} onChannelChange={onChannelChange} privateTasks={privateMode}/>;
+            const handleTogglePrivate = () => {
+                pluginInstance.showPrivate = !pluginInstance.showPrivate;
+                try {
+                    localStorage.setItem(PRIVATE_MODE_STORAGE_KEY, String(pluginInstance.showPrivate));
+                } catch (e) {
+                    console.error('Error saving private mode preference:', e);
+                }
+                pluginInstance.forceUpdateCallbacks.forEach(cb => cb());
+            };
+
+            return <TaskSidebar {...props} onChannelChange={onChannelChange} privateTasks={privateMode} onTogglePrivate={handleTogglePrivate}/>;
         };
 
         const {toggleRHSPlugin} = registry.registerRightHandSidebarComponent(TaskSidebarWrapper, DynamicTitle);
