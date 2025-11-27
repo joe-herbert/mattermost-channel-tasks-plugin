@@ -1,5 +1,5 @@
 PLUGIN_ID = com.mattermost.channel-task
-PLUGIN_VERSION = 1.5.1
+PLUGIN_VERSION = 1.5.2
 
 .PHONY: all
 all: server webapp bundle

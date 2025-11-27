@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	botUsername    = "ChannelTasks"
+	botUsername    = "channeltasks"
 	botDisplayName = "Channel Tasks"
 	botDescription = "A bot that sends daily task reminders."
 )
