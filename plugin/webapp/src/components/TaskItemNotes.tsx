@@ -10,9 +10,10 @@ interface TaskItemNotesProps {
     buttonBg: string;
     buttonColor: string;
     borderColor: string;
+    shadowColor: string;
 }
 
-export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes, updateTaskNotes, bg, subtleBackground, buttonBg, buttonColor, borderColor}) => {
+export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes, updateTaskNotes, bg, subtleBackground, buttonBg, buttonColor, borderColor, shadowColor}) => {
     const [editing, setEditing] = React.useState(!task.notes);
     const [notes, setNotes] = React.useState(task.notes || '');
 
@@ -43,7 +44,7 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
             bottom: 0,
             left: 0,
             right: 0,
-            boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)',
+            boxShadow: `0 -2px 4px ${shadowColor}`,
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -117,9 +118,9 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
                 </div>
             </div>
             {editing ?
-                <textarea placeholder="Enter some notes here..." value={notes} onChange={e => setNotes(e.target.value)} style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", resize: "vertical", maxHeight: "600px", minHeight: "100px"}}></textarea>
+                <textarea placeholder="Enter some notes here..." value={notes} onChange={e => setNotes(e.target.value)} style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", resize: "vertical", maxHeight: "600px", minHeight: "100px", backgroundColor: subtleBackground}}></textarea>
                 :
-                <pre style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", margin: "0px", minHeight: "100px"}}>{notes}</pre>
+                <pre style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", margin: "0px", minHeight: "100px", backgroundColor: subtleBackground}}>{notes}</pre>
             }
         </div>
     )
