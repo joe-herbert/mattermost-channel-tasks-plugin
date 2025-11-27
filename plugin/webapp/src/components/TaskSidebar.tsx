@@ -1,6 +1,6 @@
 import React from 'react';
 import {ChannelTaskList, TaskGroup, TaskItem} from '../types';
-import {adjustOpacity} from '../utils';
+import {adjustOpacity, isHexLight} from '../utils';
 import {TaskGroupSection} from './TaskGroupSection';
 import {DeleteGroupWarning} from './DeleteGroupWarning';
 import {DeleteCompletedWarning} from './DeleteCompletedWarning';
@@ -826,6 +826,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         const subtleBackground = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
         const borderColor = adjustOpacity(centerChannelColor, centerChannelBg, 0.1);
         const subtleText = adjustOpacity(centerChannelColor, centerChannelBg, 0.6);
+        const isLightTheme = isHexLight(centerChannelBg);
         const sortedGroups = this.getSortedGroups();
         const allTasksComplete = hasEverHadTasks && this.state.tasks.length > 0 && this.state.tasks.every(t => t.completed);
         const noTasksExist = this.state.tasks.length === 0;
@@ -980,7 +981,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 <span style={{marginBottom: '4px', display: "block"}}>Deadline</span>
                                 <div style={{position: 'relative'}}>
                                     <input type="date" value={newTaskDeadline} onChange={(e) => this.setState({newTaskDeadline: e.target.value})}
-                                           style={{width: '100%', padding: '10px', paddingRight: newTaskDeadline ? '40px' : '10px', marginBottom: '8px', border: `1px solid ${borderColor}`, borderRadius: '4px', fontSize: '14px', backgroundColor: centerChannelBg, color: centerChannelColor}}/>
+                                           style={{width: '100%', padding: '10px', paddingRight: newTaskDeadline ? '40px' : '10px', marginBottom: '8px', border: `1px solid ${borderColor}`, borderRadius: '4px', fontSize: '14px', backgroundColor: centerChannelBg, color: centerChannelColor, colorScheme: isLightTheme ? 'light' : 'dark'}}/>
                                     {newTaskDeadline && <button onClick={() => this.setState({newTaskDeadline: ''})}
                                                                 style={{position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', padding: '4px 8px', fontSize: '14px', color: subtleText, backgroundColor: 'transparent', border: 'none', cursor: 'pointer', marginBottom: '8px'}}
                                                                 title="Clear deadline">×</button>}

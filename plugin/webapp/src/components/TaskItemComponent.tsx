@@ -1,6 +1,6 @@
 import React from 'react';
 import {TaskItem} from '../types';
-import {adjustOpacity} from '../utils';
+import {adjustOpacity, isHexLight} from '../utils';
 
 interface TaskItemComponentProps {
     task: TaskItem;
@@ -56,6 +56,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
     const hoverBg = adjustOpacity(centerChannelColor, centerChannelBg, 0.05);
     const popupBorder = adjustOpacity(centerChannelColor, centerChannelBg, 0.15);
     const selectedBg = adjustOpacity(buttonBg, centerChannelBg, 0.1);
+    const isLightTheme = isHexLight(centerChannelBg);
 
     React.useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -330,7 +331,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
                                     <div style={{marginTop: '4px', marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '4px'}}>
                                         <input ref={deadlineInputRef} type="date" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)}
                                                onKeyDown={handleDeadlineKeyDown} onBlur={handleSaveDeadlineEdit} onClick={(e) => e.stopPropagation()}
-                                               style={{padding: '4px 8px', fontSize: '12px', border: `2px solid ${buttonBg}`, borderRadius: '3px', backgroundColor: centerChannelBg, color: centerChannelColor, outline: 'none'}}/>
+                                               style={{padding: '4px 8px', fontSize: '12px', border: `2px solid ${buttonBg}`, borderRadius: '3px', backgroundColor: centerChannelBg, color: centerChannelColor, outline: 'none', colorScheme: isLightTheme ? 'light' : 'dark'}}/>
                                         {editDeadline && (
                                             <button onMouseDown={handleClearDeadline} style={{padding: '4px 8px', fontSize: '14px', color: errorTextColor, backgroundColor: 'transparent', border: 'none', cursor: 'pointer'}} title="Remove deadline">×</button>
                                         )}
