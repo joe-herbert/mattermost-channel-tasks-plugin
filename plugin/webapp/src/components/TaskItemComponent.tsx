@@ -286,6 +286,12 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
     };
 
     const hasAssignees = !hideAssignees && assignedMembers.length > 0;
+    console.log('Task border debug:', task.id, task.text, {
+        deadline: task.deadline,
+        deadlineColor,
+        borderColor,
+        isDragging
+    });
 
     return (
         <div style={{position: 'relative'}}>
@@ -298,7 +304,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
                  style={{
                      padding: '4px 8px', backgroundColor: task.completed ? completedBg : centerChannelBg, borderRadius: '4px', marginBottom: '8px',
                      border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
-                     borderLeft: deadlineColor ? `4px solid ${deadlineColor}` : `4px solid ${borderColor}`,
+                     borderLeft: isDragging ? `auto` : `4px solid ${deadlineColor ?? borderColor}`,
                      opacity: isDragging ? 0.4 : 1, cursor: 'pointer', transition: 'opacity 0.2s ease, border 0.2s ease', userSelect: 'none', position: 'relative'
                  } as React.CSSProperties}>
                 <div style={{display: 'flex', alignItems: 'center', gap: "4px", position: "relative"}} data-task-background="true">
