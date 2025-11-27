@@ -187,7 +187,7 @@ export default class Plugin {
                 store.dispatch(toggleRHSPlugin);
             },
             'Task List',
-            'Open task list for this channel'
+            'Open task list'
         );
 
         registry.registerChannelHeaderMenuAction(
