@@ -981,7 +981,18 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                                 <span style={{marginBottom: '4px', display: "block"}}>Deadline</span>
                                 <div style={{position: 'relative'}}>
                                     <input type="date" value={newTaskDeadline} onChange={(e) => this.setState({newTaskDeadline: e.target.value})}
-                                           style={{width: '100%', padding: '10px', paddingRight: newTaskDeadline ? '40px' : '10px', marginBottom: '8px', border: `1px solid ${borderColor}`, borderRadius: '4px', fontSize: '14px', backgroundColor: centerChannelBg, color: centerChannelColor, colorScheme: isLightTheme ? 'light' : 'dark'}}/>
+                                           style={{
+                                               width: '100%',
+                                               padding: '10px',
+                                               paddingRight: newTaskDeadline ? '40px' : '10px',
+                                               marginBottom: '8px',
+                                               border: `1px solid ${borderColor}`,
+                                               borderRadius: '4px',
+                                               fontSize: '14px',
+                                               backgroundColor: centerChannelBg,
+                                               color: centerChannelColor,
+                                               colorScheme: isLightTheme ? 'light' : 'dark'
+                                           }}/>
                                     {newTaskDeadline && <button onClick={() => this.setState({newTaskDeadline: ''})}
                                                                 style={{position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', padding: '4px 8px', fontSize: '14px', color: subtleText, backgroundColor: 'transparent', border: 'none', cursor: 'pointer', marginBottom: '8px'}}
                                                                 title="Clear deadline">×</button>}
@@ -1067,7 +1078,8 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
                 )}
 
                 {taskToShowNotes && (
-                    <TaskItemNotes task={taskToShowNotes} hideTaskNotes={this.hideTaskNotes} updateTaskNotes={this.updateTaskNotes} bg={adjustOpacity(centerChannelColor, centerChannelBg, 0.05)} subtleBackground={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)} buttonBg={buttonBg} buttonColor={centerChannelColor} borderColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.15)} shadowColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)}></TaskItemNotes>
+                    <TaskItemNotes task={taskToShowNotes} hideTaskNotes={this.hideTaskNotes} updateTaskNotes={this.updateTaskNotes} bg={adjustOpacity(centerChannelColor, centerChannelBg, 0.05)} subtleBackground={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)} buttonBg={buttonBg}
+                                   buttonColor={centerChannelColor} borderColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.15)} shadowColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)}></TaskItemNotes>
                 )}
             </div>
         );

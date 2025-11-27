@@ -344,10 +344,20 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
                     {hasValidDeadline && !isEditingDeadline && (
                         <div onClick={handleDeadlineClick} style={{
                             fontSize: '12px', color: deadlineColor || adjustOpacity(centerChannelColor, centerChannelBg, 0.6),
-                            marginTop: '2px', marginRight: hideAssignees && (isHovered || showMenu || showAssigneePopup) ? "20px" : "0px", fontWeight: deadlineColor ? 500 : 400, cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'inline-block', transition: 'background-color 0.2s, margin-right 0.3s ease'
+                            marginTop: '2px', marginRight: !task.notes && hideAssignees && (isHovered || showMenu || showAssigneePopup) ? "20px" : "0px", fontWeight: deadlineColor ? 500 : 400, cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'inline-block', transition: 'background-color 0.2s, margin-right 0.3s ease'
                         }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; }}
                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }} title="Click to edit deadline">
                             {formatDeadline(task.deadline!)}
+                        </div>
+                    )}
+
+                    {task.notes && !isEditing && (
+                        <div onClick={handleNotesClick} style={{
+                            fontSize: '12px', color: adjustOpacity(centerChannelColor, centerChannelBg, 0.6),
+                            marginTop: '2px', marginRight: hideAssignees && (isHovered || showMenu || showAssigneePopup) ? "20px" : "0px", fontWeight: deadlineColor ? 500 : 400, cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'inline-block', transition: 'background-color 0.2s, margin-right 0.3s ease'
+                        }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; }}
+                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }} title="Click to edit deadline">
+                            <i className="icon icon-text-box-outline"></i>
                         </div>
                     )}
 
