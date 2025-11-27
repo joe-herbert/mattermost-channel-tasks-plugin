@@ -1083,7 +1083,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
                 {taskToShowNotes && (
                     <TaskItemNotes task={taskToShowNotes} hideTaskNotes={this.hideTaskNotes} updateTaskNotes={this.updateTaskNotes} bg={adjustOpacity(centerChannelColor, centerChannelBg, 0.05)} subtleBackground={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)} buttonBg={buttonBg}
-                                   buttonColor={centerChannelColor} borderColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.15)} shadowColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)}></TaskItemNotes>
+                                   buttonColor={centerChannelColor} borderColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.15)} shadowColor={adjustOpacity(centerChannelColor, centerChannelBg, 0.1)} channelBg={centerChannelBg}></TaskItemNotes>
                 )}
             </div>
         );

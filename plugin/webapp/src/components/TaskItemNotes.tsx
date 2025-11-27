@@ -11,9 +11,10 @@ interface TaskItemNotesProps {
     buttonColor: string;
     borderColor: string;
     shadowColor: string;
+    channelBg: string;
 }
 
-export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes, updateTaskNotes, bg, subtleBackground, buttonBg, buttonColor, borderColor, shadowColor}) => {
+export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes, updateTaskNotes, bg, subtleBackground, buttonBg, buttonColor, borderColor, shadowColor, channelBg}) => {
     const [editing, setEditing] = React.useState(!task.notes);
     const [notes, setNotes] = React.useState(task.notes || '');
 
@@ -24,6 +25,10 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
 
     const startEdit = () => {
         setEditing(true);
+        setTimeout(() => {
+            const textarea = document.getElementById('notesTextarea');
+            if (textarea) textarea.focus();
+        }, 0);
     };
 
     const cancelEdit = () => {
@@ -118,7 +123,7 @@ export const TaskItemNotes: React.FC<TaskItemNotesProps> = ({task, hideTaskNotes
                 </div>
             </div>
             {editing ?
-                <textarea placeholder="Enter some notes here..." value={notes} onChange={e => setNotes(e.target.value)} style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", resize: "vertical", maxHeight: "600px", minHeight: "100px", backgroundColor: subtleBackground}}></textarea>
+                <textarea id="notesTextarea" placeholder="Enter some notes here..." value={notes} onChange={e => setNotes(e.target.value)} style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", resize: "vertical", maxHeight: "600px", minHeight: "100px", backgroundColor: channelBg}}></textarea>
                 :
                 <pre style={{border: `1px solid ${borderColor}`, borderRadius: "5px", font: "inherit", padding: "6px", margin: "0px", minHeight: "100px", backgroundColor: subtleBackground}}>{notes}</pre>
             }
