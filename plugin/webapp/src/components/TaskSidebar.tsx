@@ -111,6 +111,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
         if (this.props.onChannelChange) {
             this.props.onChannelChange(() => {
                 if (!this.state.privateTasks) {
+                    this.setState({taskToShowNotes: null});
                     this.loadTasks();
                     this.loadChannelMembers();
                 }
@@ -121,6 +122,7 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
 
     componentDidUpdate(prevProps: any, prevState: any) {
         if (prevProps.privateTasks !== this.props.privateTasks) {
+            this.setState({taskToShowNotes: null});
             this.setState({privateTasks: this.props.privateTasks}, () => {
                 this.loadTasks();
                 if (!this.props.privateTasks) {
