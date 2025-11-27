@@ -139,7 +139,11 @@ export default class Plugin {
             return (
                 <div id="header" style={{position: 'relative', width: '100%'}}>
                     <span style={{overflow: 'hidden', maxWidth: 'calc(100% - 2em)', display: 'block', textOverflow: 'ellipsis'}}>{title}</span>
-                    <div style={{position: 'absolute', top: '50%', right: '-1rem', paddingLeft: '2px', display: 'flex', alignItems: 'center', gap: '0px', backgroundColor: 'rgb(var(--center-channel-bg-rgb))', color: 'rgba(var(--center-channel-color-rgb), var(--icon-opacity))', cursor: 'pointer', fontSize: '18px', transform: 'translateY(-50%)'}} onClick={handleTogglePrivate} title={showPrivate ? 'Switch to Channel Tasks' : 'Switch to Private Tasks'}>
+                    <div style={{position: 'absolute', top: '50%', right: '-1rem', height: '32px', padding: '0px 4px', borderRadius: 'var(--radius-s)', display: 'flex', alignItems: 'center', gap: '0px', backgroundColor: 'rgb(var(--center-channel-bg-rgb))', color: 'rgba(var(--center-channel-color-rgb), var(--icon-opacity))', cursor: 'pointer', fontSize: '18px', transform: 'translateY(-50%)', transition: 'background-color 0.2s'}}
+                         onClick={handleTogglePrivate}
+                         title={showPrivate ? 'Switch to Channel Tasks' : 'Switch to Private Tasks'}
+                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(var(--center-channel-color-rgb), 0.08)'; }}
+                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--center-channel-bg-rgb))'; }}>
                         <i className="icon icon-arrow-right"></i>
                         {showPrivate ? <i className={"icon icon-product-channels"} style={{width: '1em'}}></i>
                             : <i className={"icon icon-account-outline"} style={{width: '1em'}}></i>}
@@ -147,6 +151,9 @@ export default class Plugin {
                     <style>{`
                         #header .icon:before {
                             margin: 0!important;
+                        }
+                        .sidebar--right .sidebar--right__title {
+                            height: 100%!important;
                         }
                     `}</style>
                 </div>
