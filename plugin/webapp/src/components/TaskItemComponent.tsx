@@ -304,7 +304,7 @@ export const TaskItemComponent: React.FC<TaskItemComponentProps> = ({
                  style={{
                      padding: '4px 8px', backgroundColor: task.completed ? completedBg : centerChannelBg, borderRadius: '4px', marginBottom: '8px',
                      border: isDragging ? `2px dashed ${buttonBg}` : `1px solid ${borderColor}`,
-                     borderLeft: isDragging ? `auto` : `4px solid ${deadlineColor ?? borderColor}`,
+                     borderLeft: isDragging ? `auto` : `${deadlineColor ? '4' : '1'}px solid ${deadlineColor ?? borderColor}`,
                      opacity: isDragging ? 0.4 : 1, cursor: 'pointer', transition: 'opacity 0.2s ease, border 0.2s ease', userSelect: 'none', position: 'relative'
                  } as React.CSSProperties}>
                 <div style={{display: 'flex', alignItems: 'center', gap: "4px", position: "relative"}} data-task-background="true">
