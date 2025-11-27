@@ -370,7 +370,11 @@ export class TaskSidebar extends React.Component<TaskSidebarProps> {
     };
 
     showTaskNotes = async (task: TaskItem) => {
-        this.setState({taskToShowNotes: task})
+        if (this.state.taskToShowNotes?.id === task.id) {
+            this.hideTaskNotes();
+        } else {
+            this.setState({taskToShowNotes: task});
+        }
     };
 
     hideTaskNotes = () => {
