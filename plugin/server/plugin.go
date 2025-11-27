@@ -713,7 +713,9 @@ func (p *Plugin) sendDailyTaskSummary(userID string) {
 	}
 
 	if len(otherTasks) > 0 {
-		sb.WriteString("⬜ **Everything Else**\n\n")
+		if len(completedYesterdayTasks) > 0 || len(overdueTasks) > 0 || len(todayTasks) > 0 || len(weekTasks) > 0 {
+			sb.WriteString("⬜ **Everything Else**\n\n")
+		}
 		p.writeTaskList(&sb, otherTasks)
 		sb.WriteString("\n---\n")
 	}
